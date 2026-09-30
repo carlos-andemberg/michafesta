@@ -20,7 +20,14 @@
    De tempos em tempos tem festinha: a plaquinha pula, as flores
    soltam pétalas e as abelhas voam em volta do nome.
 
-   COMO COLOCAR NO OBS
+   DOIS MODELOS
+     tela inteira (padrão)  a fonte cobre a tela toda e a moldura cai no
+                            lugar da câmera da partida, sem cobrir o HUD
+     ?solta                 só a câmera, com borda em volta toda: a fonte é
+                            a câmera + uma margem pros enfeites, e dá pra
+                            agrupar com a webcam no OBS e mover as duas juntas
+
+   COMO COLOCAR NO OBS (tela inteira)
      1. Fontes -> + -> Navegador
      2. URL: o link desta página
      3. Largura e altura = tamanho da tela do OBS (1920 x 1080).
@@ -29,11 +36,13 @@
      4. Deixe a moldura ACIMA da câmera na lista de fontes.
 
    OPÇÕES NO LINK (junte com &)
+     ?solta                    modelo só da câmera (ignora x, y e tela)
      ?x=1190&y=843             canto de cima-esquerdo da câmera, em pixels da tela
      ?largura=423&altura=237   tamanho da câmera
      ?tela=1280x720            tamanho da tela do OBS, se não for 1920x1080
      ?nome=Micha               texto da plaquinha (?nome= esconde)
      ?abelhas=5                quantas abelhas voando (0 a 8)
+     ?velocidade=0.4           velocidade das abelhas (1 = rápida, 0.6 = padrão, 0.3 = bem devagar)
      ?festa=40                 segundos entre as festinhas (0 = desliga)
      ?zoom                     só na prévia: mostra a moldura de pertinho
 
@@ -51,6 +60,7 @@ const CONFIG = {
   cam: { x: 1190, y: 843, largura: 423, altura: 237 },    // onde a câmera fica (medido da live)  ·  link: ?x=&y=&largura=&altura=
 
   abelhas: 3,                  // quantas abelhas voando  ·  link: ?abelhas=5
+  velocidade: 0.6,             // velocidade das abelhas: 1 = rápida, 0.3 = bem devagar  ·  link: ?velocidade=0.4
   festa: 25,                   // segundos entre as festinhas, 0 = desliga  ·  link: ?festa=40
   rastro: true,                // rastrinho pontilhado atrás das abelhas
   pingos: true,                // pingos de mel escorrendo da borda
@@ -101,6 +111,8 @@ const CONFIG = {
   .dica { position:absolute; left:48px; top:40px; flex-direction:column; gap:10px;
           color:rgba(255,255,255,.6); font:600 30px 'Fredoka', 'Segoe UI', Arial, sans-serif; }
   .dica b { color:#ffd84a; font-size:44px; }
+  .dica.fixa { position:fixed; left:16px; top:12px; gap:2px; font-size:16px; z-index:5; }
+  .dica.fixa b { font-size:20px; }
 
   /* ---------- enfeites (SVG) ---------- */
   .folha { transform-box:fill-box; transform-origin:0% 50%; animation:gira var(--t) ease-in-out var(--d) infinite alternate; }
@@ -149,24 +161,36 @@ const CONFIG = {
     return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
   };
 
-  // ---------- tela e câmera (em pixels da tela do OBS) ----------
-  let SW = C.tela.largura, SH = C.tela.altura;
-  const tq = (q.get('tela') || '').match(/^(\d{3,4})(?:\s*[x×*]\s*(\d{3,4}))?$/i);
-  if (tq) { SW = +tq[1]; SH = tq[2] ? +tq[2] : Math.round(SW * 9 / 16); }
-  const esc = SW / C.tela.largura;                      // ?tela=1280x720 sem x/y: as medidas do CONFIG encolhem junto
-  const X = num('x', C.cam.x * esc, 0, SW - 60), Y = num('y', C.cam.y * esc, 0, SH - 40);
-  const W = num('largura', C.cam.largura * esc, 60, SW - X), H = num('altura', C.cam.altura * esc, 34, SH - Y + 40);
+  // ---------- modelo, tela e câmera (em pixels da tela do OBS) ----------
+  // padrão: a fonte cobre a tela toda e a moldura cai no lugar da câmera
+  // ?solta: só a câmera, com borda em volta toda; a fonte é a câmera + margem pros enfeites
+  const SOLTA = q.has('solta');
+  let SW = C.tela.largura, SH = C.tela.altura, X, Y, W, H;
+  if (SOLTA) {
+    W = num('largura', C.cam.largura, 60, 3840); H = num('altura', C.cam.altura, 34, 2160);
+  } else {
+    const tq = (q.get('tela') || '').match(/^(\d{3,4})(?:\s*[x×*]\s*(\d{3,4}))?$/i);
+    if (tq) { SW = +tq[1]; SH = tq[2] ? +tq[2] : Math.round(SW * 9 / 16); }
+    const esc = SW / C.tela.largura;                    // ?tela=1280x720 sem x/y: as medidas do CONFIG encolhem junto
+    X = num('x', C.cam.x * esc, 0, SW - 60); Y = num('y', C.cam.y * esc, 0, SH - 40);
+    W = num('largura', C.cam.largura * esc, 60, SW - X); H = num('altura', C.cam.altura * esc, 34, SH - Y + 40);
+  }
   const k = Math.min(2.4, Math.max(.4, W / 423));      // tamanho dos enfeites acompanha a câmera
+  if (SOLTA) {                                          // margem em volta: 90 dos lados e embaixo, 170 em cima (numa câmera de 423)
+    X = Math.round(90 * k); Y = Math.round(170 * k);
+    SW = Math.round(X + W + 90 * k); SH = Math.round(Y + H + 90 * k);
+  }
   const NOME = (q.has('nome') ? q.get('nome') : C.nome).trim().slice(0, 24);
   const NA = Math.round(num('abelhas', C.abelhas, 0, 8));
+  const VEL = num('velocidade', C.velocidade, .1, 3);
   const FESTA = num('festa', C.festa, 0, 3600);
   const B = C.borda * k, CW = 3.2 * k;                  // grossura da borda e do contorno
   const ins = B / 2 + CW / 2;                           // linha do meio da borda, por dentro da câmera
   const aberta = Y + H >= SH - 3;                       // câmera encostada no rodapé: sem borda embaixo
 
   // área que o desenho ocupa (o resto da tela fica vazio)
-  const RX = Math.max(0, X - 190 * k), RY = Math.max(0, Y - 230 * k);
-  const RR = Math.min(SW, X + W + 14 * k), RB = Math.min(SH, Y + H + 30 * k);
+  const RX = SOLTA ? 0 : Math.max(0, X - 190 * k), RY = SOLTA ? 0 : Math.max(0, Y - 230 * k);
+  const RR = SOLTA ? SW : Math.min(SW, X + W + 14 * k), RB = SOLTA ? SH : Math.min(SH, Y + H + 30 * k);
   const RW = RR - RX, RH = RB - RY;
 
   const palco = document.querySelector('.palco');
@@ -181,11 +205,16 @@ const CONFIG = {
   if (q.has('preview')) demo = true;
   if (q.has('semfundo')) demo = false;
   if (demo) document.body.classList.add('demo');
-  const zoom = demo && q.has('zoom');
+  const zoom = demo && q.has('zoom') && !SOLTA;
   document.querySelector('.cam-box').style.cssText = 'left:' + X + 'px;top:' + Y + 'px;width:' + W + 'px;height:' + H + 'px';
-  document.querySelector('.dica').innerHTML =
-    '<b>OBS · fonte Navegador · ' + SW + ' × ' + SH + '</b><span>clique em qualquer lugar pra fazer a festa 🐝</span>';
-  if (demo) {                                          // HUD de mentirinha, medido da live (1920 x 1080)
+  const dica = document.querySelector('.dica');
+  dica.innerHTML = '<b>OBS · fonte Navegador · ' + SW + ' × ' + SH + '</b><span>clique em qualquer lugar pra fazer a festa 🐝</span>';
+  if (SOLTA) {                                          // a fonte é pequena: a dica fica fora dela
+    dica.classList.add('fixa');
+    dica.innerHTML += '<span>a câmera fica ' + X + ' px da esquerda e ' + Y + ' px do topo da fonte</span>';
+    document.body.appendChild(dica);
+  }
+  if (demo && !SOLTA) {                                          // HUD de mentirinha, medido da live (1920 x 1080)
     const s = SW / 1920, hud = (cls, x, y, w, h, txt) => {
       const d = document.createElement('div');
       d.className = 'demo-only ' + cls;
@@ -374,6 +403,12 @@ const CONFIG = {
     const hc = 12.5 * k, fx = X + W - 26 * k, fy = Y - 6 * k;
     for (const [a, l] of [[-165, 34], [-122, 32], [-80, 26], [178, 30]]) partes.push(folha(fx - 12 * k, fy, a + rnd(-6, 6), l * k, Math.random() < .5));
 
+    // ---- cantos de baixo (só no modelo solto, que tem borda em volta toda) ----
+    if (SOLTA) {
+      for (const [a, l] of [[165, 34], [128, 36], [95, 30], [18, 30], [-100, 28]]) partes.push(folha(X + 6 * k, Y + H - 6 * k, a + rnd(-6, 6), l * k, Math.random() < .5));
+      for (const [a, l] of [[15, 34], [52, 36], [85, 30], [162, 30], [-80, 28]]) partes.push(folha(X + W - 6 * k, Y + H - 6 * k, a + rnd(-6, 6), l * k, Math.random() < .5));
+    }
+
     // ---- a borda: mel com textura de favo, brilho correndo ----
     const dB = aberta
       ? 'M' + f(xl) + ' ' + f(yb) + 'L' + f(xl) + ' ' + f(yt + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xl + r) + ' ' + f(yt) + 'L' + f(xr - r) + ' ' + f(yt) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xr) + ' ' + f(yt + r) + 'L' + f(xr) + ' ' + f(yb)
@@ -389,6 +424,11 @@ const CONFIG = {
     if (C.pingos) {
       partes.push(pingo(X + W * .2, yP, 4.5 * k, 20 * k, 60 * k, 'url(#gBorda)', B * .45));
       partes.push(pingo(X + W * .8, yP, 4 * k, 13 * k, 0, 'url(#gBorda)', B * .45));
+      if (!aberta) {                                     // borda fechada: mel pingando pra fora, embaixo
+        const yPb = Y + H - ins + B / 2;
+        partes.push(pingo(X + W * .38, yPb, 4.5 * k, 22 * k, 50 * k, 'url(#gBorda)', B * .45));
+        partes.push(pingo(X + W * .64, yPb, 4 * k, 15 * k, 0, 'url(#gBorda)', B * .45));
+      }
     }
 
     // ---- cipós com folhas e florzinhas: de um canto até a plaquinha, e da plaquinha até o outro canto ----
@@ -404,7 +444,14 @@ const CONFIG = {
     const c3 = cipo(xl, Y + 30 * k, xl, Y + 98 * k);          // desce pelo lado esquerdo (fora da câmera só tem jogo até os itens)
     partes.push(c3.svg, folhasNoCipo(c3, 20 * k, 0, 18 * k));
     const c4 = cipo(xr, Y + 30 * k, xr, Y + 78 * k);          // lado direito: folhas só pra dentro, o minimapa fica do lado
-    partes.push(c4.svg, folhasNoCipo(c4, 20 * k, 1, 17 * k));
+    partes.push(c4.svg, folhasNoCipo(c4, 20 * k, SOLTA ? 0 : 1, 17 * k));
+    if (SOLTA) {                                               // sobem dos cantos de baixo e correm pela borda de baixo
+      const yb2 = Y + H - ins + .5 * k;
+      for (const c of [cipo(xl, Y + H - 28 * k, xl, Y + H - 80 * k), cipo(xr, Y + H - 28 * k, xr, Y + H - 72 * k),
+                       cipo(X + 26 * k, yb2, X + W * .3, yb2), cipo(X + W - 26 * k, yb2, X + W * .72, yb2)]) {
+        partes.push(c.svg, folhasNoCipo(c, 21 * k, 0, 18 * k));
+      }
+    }
 
     // flores
     partes.push(girassol(gx, gy, gr));
@@ -414,6 +461,14 @@ const CONFIG = {
     if (c1.L > 70 * k) partes.push(florzinha(X + 26 * k + c1.L * .62, yc - 1 * k, 7.5 * k, COR.flores[1]));
     partes.push(margarida(fx - 62 * k, Y - 20 * k, 9.5 * k, COR.flores[0]));
     partes.push(florzinha(xr - 1 * k, Y + 80 * k, 6.5 * k, COR.flores[2]));
+    if (SOLTA) {
+      partes.push(margarida(X + 40 * k, Y + H + 12 * k, 9.5 * k, COR.flores[0]));
+      partes.push(florzinha(X - 20 * k, Y + H - 34 * k, 7.5 * k, COR.flores[1]));
+      partes.push(florzinha(X + 6 * k, Y + H - 4 * k, 8.5 * k, COR.flores[2]));
+      partes.push(florzinha(X + W - 40 * k, Y + H + 12 * k, 8 * k, COR.flores[2]));
+      partes.push(margarida(X + W + 20 * k, Y + H - 30 * k, 9 * k, COR.flores[0]));
+      partes.push(florzinha(X + W - 6 * k, Y + H - 4 * k, 8.5 * k, COR.flores[1]));
+    }
 
     // favo: pingo comprido saindo da célula de baixo
     const s3 = Math.sqrt(3) / 2 * hc;
@@ -464,6 +519,12 @@ const CONFIG = {
   //  abelhas
   // ================================================================
   const zona = { x0: X - 60 * k, x1: X + W - 36 * k, y0: Math.max(RY + 24 * k, Y - 125 * k), y1: Y - 34 * k };
+  // modelo solto: um anel em volta da câmera, lado 0 = cima, 1 = direita, 2 = embaixo, 3 = esquerda (sentido horário)
+  function noAnel(lado, pos, off) {
+    const x0 = X - off, y0 = Y - off, x1 = X + W + off, y1 = Y + H + off;
+    return lado === 0 ? [x0 + (x1 - x0) * pos, y0] : lado === 1 ? [x1, y0 + (y1 - y0) * pos]
+         : lado === 2 ? [x1 - (x1 - x0) * pos, y1] : [x0, y1 - (y1 - y0) * pos];
+  }
   enxame.innerHTML = '<defs>' +
     '<linearGradient id="gCorpo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb000"/></linearGradient>' +
     '<clipPath id="clipCorpo"><ellipse cx="0" cy="3" rx="18" ry="13.5"/></clipPath></defs>';
@@ -488,42 +549,61 @@ const CONFIG = {
     const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     el.innerHTML = abelhaSVG();
     enxame.appendChild(el);
-    const b = { i, el, x: rnd(zona.x0, zona.x1), y: rnd(zona.y0, zona.y1), vx: 0, vy: 0, lado: 1, fx: 1, ang: 0,
+    const anel = Math.floor(rnd(0, 4)), pos = rnd(0, 1), [x, y] = SOLTA ? noAnel(anel, pos, 45 * k) : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
+    const b = { i, el, x, y, anel, pos, vx: 0, vy: 0, lado: 1, fx: 1, ang: 0,
                 tam: .85 * k * rnd(.82, 1.05), fase: rnd(0, 7), fw: rnd(1.6, 2.8), modo: 'voa', ate: 0, alvo: null, rastro: [] };
     novoAlvo(b);
     return b;
   }
   function novoAlvo(b) {
     b.modo = 'voa';
-    b.alvo = pousos.length && Math.random() < .4 ? escolhe(pousos).slice() : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
+    if (!SOLTA) {
+      b.alvo = pousos.length && Math.random() < .4 ? escolhe(pousos).slice() : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
+      return;
+    }
+    // solto: pousa numa flor por perto, ou anda pelo anel; nos cantos passa pela quina, pra não cortar por cima do rosto
+    const perto = pousos.filter(p => Math.hypot(p[0] - b.x, p[1] - b.y) < 170 * k);
+    if (perto.length && Math.random() < .35) { b.alvo = escolhe(perto).slice(); return; }
+    const off = rnd(30, 60) * k, p = b.pos + rnd(-.5, .5);
+    if (p >= 1) { b.alvo = noAnel(b.anel, 1, off); b.anel = (b.anel + 1) % 4; b.pos = 0; }
+    else if (p <= 0) { b.alvo = noAnel(b.anel, 0, off); b.anel = (b.anel + 3) % 4; b.pos = 1; }
+    else { b.pos = p; b.alvo = noAnel(b.anel, p, off); }
   }
 
-  let festaT0 = -99, festaAte = -99;
+  // as abelhas vivem num relógio próprio (tb), que anda VEL vezes o normal: o voo é o mesmo, só mais lento ou mais rápido
+  let festaT0 = -99, festaAte = -99, tb = 0;
   function moverAbelha(b, t, dt) {
-    const emFesta = t < festaAte && placa;
+    const emFesta = t < festaAte && (placa || SOLTA), dv = dt * VEL;
     let tx, ty;
-    if (emFesta) {                                     // festa: rodam em volta da plaquinha
-      const a = (t - festaT0) * 2.8 + b.i * Math.PI * 2 / bees.length;
+    if (emFesta && SOLTA) {                            // festa no modelo solto: correm em volta da moldura, sem cruzar a câmera
+      b.pos += dv * 380 * k / ((b.anel % 2 ? H : W) + 84 * k);
+      while (b.pos >= 1) { b.pos -= 1; b.anel = (b.anel + 1) % 4; }
+      [tx, ty] = noAnel(b.anel, b.pos, 42 * k);
+      b.festa = true;
+    } else if (emFesta) {                              // festa: rodam em volta da plaquinha
+      const a = (t - festaT0) * 2.8 * VEL + b.i * Math.PI * 2 / bees.length;
       tx = placa.cx + Math.cos(a) * (placa.TW / 2 + 26 * k); ty = placa.cy + Math.sin(a) * (placa.TH / 2 + 14 * k);
+      b.festa = true;
     } else {
+      if (b.festa) { b.festa = false; novoAlvo(b); }  // acabou a festa: volta a passear de onde está
       if (b.modo === 'paira' && t > b.ate) novoAlvo(b);
       [tx, ty] = b.alvo;
     }
     const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
     if (!emFesta && b.modo === 'voa' && d < 10 * k) { b.modo = 'paira'; b.ate = t + rnd(.5, 2.4); }
     if (b.modo === 'paira' && !emFesta) {
-      const amort = 1 - Math.min(1, 6 * dt);
-      b.vx = b.vx * amort + dx * 8 * dt; b.vy = b.vy * amort + dy * 8 * dt;
+      const amort = 1 - Math.min(1, 6 * dv);
+      b.vx = b.vx * amort + dx * 8 * dv; b.vy = b.vy * amort + dy * 8 * dv;
     } else {
       const A = (emFesta ? 2600 : 950) * k * Math.min(1, d / (50 * k));
-      const w = Math.sin(t * b.fw + b.fase) * 420 * k;   // zigue-zague de abelha
-      b.vx += (dx / d * A - dy / d * w) * dt; b.vy += (dy / d * A + dx / d * w) * dt;
-      const amort = 1 - Math.min(1, 2.4 * dt);
+      const w = Math.sin(tb * b.fw + b.fase) * 420 * k;  // zigue-zague de abelha
+      b.vx += (dx / d * A - dy / d * w) * dv; b.vy += (dy / d * A + dx / d * w) * dv;
+      const amort = 1 - Math.min(1, 2.4 * dv);
       b.vx *= amort; b.vy *= amort;
     }
     const vmax = (emFesta ? 460 : 220) * k, v = Math.hypot(b.vx, b.vy);
     if (v > vmax) { b.vx *= vmax / v; b.vy *= vmax / v; }
-    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.x += b.vx * dv; b.y += b.vy * dv;
 
     if (b.vx > 22 * k) b.lado = 1; else if (b.vx < -22 * k) b.lado = -1;
     b.fx += (b.lado - b.fx) * Math.min(1, dt * 14);   // vira de lado espremendo
@@ -561,7 +641,7 @@ const CONFIG = {
         if (p.vy > 70 * k) p.vy += (70 * k - p.vy) * Math.min(1, 3 * dt);     // cai devagar, planando
         p.vx *= 1 - Math.min(1, 1.3 * dt);
         p.x += (p.vx + Math.sin(t * 3 + p.fase) * 32 * k) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
-        a *= Math.max(0, Math.min(1, (X + W - 6 * k - p.x) / (18 * k)));     // some antes do minimapa
+        a *= Math.max(0, Math.min(1, ((SOLTA ? RR : X + W - 6 * k) - p.x) / (18 * k)));   // some antes do minimapa
         a *= Math.max(0, Math.min(1, (Y + H * .3 - p.y) / (36 * k)));        // e antes de chegar no rosto
         if (a <= 0) continue;
         const sy = Math.abs(Math.cos(t * p.vf + p.fase)) * .8 + .2;         // gira no ar
@@ -624,7 +704,7 @@ const CONFIG = {
     }
     const cores = COR.flores.concat([COR.mel, COR.claro]);
     for (let i = 0; i < 44; i++) {
-      const a = rnd(-Math.PI * .92, -Math.PI * .08), v = rnd(140, 360) * k;
+      const a = rnd(-Math.PI * .92, -Math.PI * .08), v = rnd(140, SOLTA ? 300 : 360) * k;
       petala(cx + rnd(-.4, .4) * (placa ? placa.TW : W * .5), cy - rnd(0, 10) * k, Math.cos(a) * v, Math.sin(a) * v, escolhe(cores), rnd(2.6, 3.8));
     }
     for (const fl of flores) {
@@ -671,6 +751,7 @@ const CONFIG = {
       if (fl) brilho(fl.x + rnd(-6, 6) * k, fl.y + rnd(-6, 6) * k, rnd(.5, .8));
       proxBrilho = t + rnd(1.2, 3);
     }
+    tb += dt * VEL;
     for (const b of bees) moverAbelha(b, t, dt);
 
     ctx.setTransform(K, 0, 0, K, -RX * K, -RY * K);

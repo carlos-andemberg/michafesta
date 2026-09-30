@@ -33,6 +33,8 @@
                   border-radius:10px; padding:7px 10px; width:100%; min-width:0; }
   input:focus, select:focus { outline:none; border-color:var(--mel); }
   select option { background:#18241a; }
+  input[type=range] { padding:0; border:0; background:none; accent-color:var(--mel); height:38px; }
+  .field > span output { color:var(--mel); text-transform:none; letter-spacing:0; }
   @media (max-width:520px) { .field.wide { grid-column:auto; } }
   .label { font-size:13px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,248,230,.5); font-weight:600; margin-bottom:8px; }
   .url { display:flex; gap:8px; align-items:stretch; margin-bottom:14px; }
@@ -47,6 +49,18 @@
   .tips { color:rgba(255,248,230,.6); font-size:15px; line-height:1.7; margin:0; }
   .tips b { color:var(--mel); font-weight:600; }
   .live { position:relative; width:100%; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; background:#000; margin-bottom:12px; }
+  .modelos { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
+  @media (max-width:520px) { .modelos { grid-template-columns:1fr; } }
+  .modelo { font:inherit; text-align:left; padding:12px 14px; border-radius:14px; cursor:pointer; color:#fff8e6;
+            background:rgba(0,0,0,.25); border:2px solid rgba(255,204,46,.2); }
+  .modelo b { display:block; font-size:17px; font-weight:700; }
+  .modelo span { font-size:14px; color:rgba(255,248,230,.6); }
+  .modelo[aria-pressed="true"] { border-color:var(--mel); background:rgba(255,204,46,.12); }
+  .modelo[aria-pressed="true"] b { color:var(--mel); }
+  .info { margin:0 0 18px; padding:12px 14px; border-radius:12px; background:rgba(255,204,46,.08); border:2px dashed rgba(255,204,46,.3);
+          color:rgba(255,248,230,.8); line-height:1.6; }
+  .info b { color:var(--mel); }
+  .info:empty, [hidden] { display:none !important; }
   .live:empty { display:none; }
   .live iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
   .live iframe.moldura { pointer-events:none; }
@@ -59,7 +73,13 @@
 
   <section class="card">
     <h2>🐝 Moldura da câmera</h2>
-    <p>Borda de mel com girassol, favo, folhas, florzinhas e abelhas voando. Ela já vem no lugar da câmera da live: embaixo, entre os itens e o minimapa. Só tem borda em cima e dos lados, e nada cobre o HUD do jogo. De tempos em tempos tem festinha: pétalas e abelhas em volta do nome.</p>
+    <p>Borda de mel com girassol, favo, folhas, florzinhas e abelhas voando. De tempos em tempos tem festinha: a plaquinha pula, as flores soltam pétalas e as abelhas fazem a festa.</p>
+
+    <div class="modelos">
+      <button class="modelo" data-modelo="tela" aria-pressed="true"><b>🖥️ Tela inteira</b><span>já vem no lugar da câmera da partida, sem cobrir o HUD</span></button>
+      <button class="modelo" data-modelo="solta" aria-pressed="false"><b>🎥 Só a câmera</b><span>borda em volta toda, agrupa com a webcam e move junto</span></button>
+    </div>
+    <p class="info" id="info"></p>
 
     <div class="fields">
       <label class="field"><span>Nome</span><input type="text" id="nome" value="MichaFesta" maxlength="24"></label>
@@ -84,6 +104,7 @@
         </div>
       </div>
       <label class="field"><span>Abelhas</span><input type="number" id="abelhas" value="3" min="0" max="8"></label>
+      <label class="field"><span>Velocidade · <output id="velTxt"></output></span><input type="range" id="velocidade" value="0.6" min="0.2" max="2" step="0.1" title="0,6× é o padrão · 1× é rápida · 0,3× é bem devagar"></label>
       <label class="field"><span>Festinha a cada (s)</span><input type="number" id="festa" value="25" min="0" max="3600" step="1"></label>
     </div>
 
@@ -103,9 +124,10 @@
   </section>
 
   <p class="tips">
-    <b>No OBS:</b> Fontes → + → Navegador → cole o link. Largura e altura = tamanho da tela do OBS (1920 × 1080). Deixe a moldura acima da câmera.<br>
+    <b>Tela inteira no OBS:</b> Fontes → + → Navegador → cole o link. Largura e altura = tamanho da tela do OBS (1920 × 1080). Deixe a moldura acima da câmera.<br>
+    <b>Só a câmera no OBS:</b> Fontes → + → Navegador → cole o link, com o tamanho que aparece na caixinha. Encaixe a câmera no buraco da moldura, selecione as duas → botão direito → Agrupar itens selecionados. Daí é só mover e redimensionar o grupo.<br>
     <b>Mudou a câmera de lugar?</b> Botão direito na câmera → Transformar → Editar transformação: copie a posição e o tamanho pros campos acima. O tamanho da tela fica em Configurações → Vídeo → Resolução base.<br>
-    <b>Nome vazio</b> esconde a plaquinha. <b>Festinha 0</b> desliga a festa. Na prévia, clique pra fazer a festa.
+    <b>Nome vazio</b> esconde a plaquinha. <b>Abelhas 0</b> tira as abelhas. <b>Festinha 0</b> desliga a festa. Na prévia, clique pra fazer a festa.
   </p>
 </main>
 
@@ -113,9 +135,9 @@
   const $ = id => document.getElementById(id);
   // medido da live, numa tela 1920 x 1080
   const CAM = { x: 1190, y: 843, largura: 423, altura: 237 };
-  const PADRAO = { nome: 'MichaFesta', tela: '1920x1080', abelhas: 3, festa: 25 };
+  const PADRAO = { nome: 'MichaFesta', tela: '1920x1080', abelhas: 3, velocidade: .6, festa: 25 };
   const campos = ['x', 'y', 'largura', 'altura'];
-  let tela = PADRAO.tela;
+  let tela = PADRAO.tela, modelo = 'tela';
 
   const escala = t => parseInt(t) / 1920;
   const camPadrao = t => Object.fromEntries(campos.map(c => [c, Math.round(CAM[c] * escala(t))]));
@@ -129,31 +151,60 @@
     build();
   };
 
-  // o link só leva o que é diferente do padrão
-  function params() {
-    const p = [], cam = camPadrao(tela);
+  for (const b of document.querySelectorAll('.modelo')) b.onclick = () => {
+    modelo = b.dataset.modelo;
+    for (const o of document.querySelectorAll('.modelo')) o.setAttribute('aria-pressed', o === b);
+    build();
+  };
+
+  // modelo solto: a fonte é a câmera + margem pros enfeites (a mesma conta de moldura-camera.html)
+  function fonteSolta(w, h) {
+    const k = Math.min(2.4, Math.max(.4, w / 423)), esq = Math.round(90 * k), cima = Math.round(170 * k);
+    return { esq, cima, w: Math.round(esq + w + 90 * k), h: Math.round(cima + h + 90 * k) };
+  }
+
+  // o link só leva o que é diferente do padrão; solta = modelo só da câmera
+  function params(solta) {
+    const p = solta ? ['solta'] : [], cam = camPadrao(tela);
     const nome = $('nome').value.trim();
     if (nome !== PADRAO.nome) p.push('nome=' + encodeURIComponent(nome));
-    if (tela !== PADRAO.tela) p.push('tela=' + tela);
-    for (const c of campos) { const v = n(c); if (v !== null && Math.abs(v - cam[c]) >= 1) p.push(c + '=' + Math.round(v)); }
+    if (solta) {                                        // o modelo solto só usa o tamanho (e o padrão dele é o da tela 1920)
+      for (const c of ['largura', 'altura']) { const v = n(c); if (v !== null && Math.abs(v - CAM[c]) >= 1) p.push(c + '=' + Math.round(v)); }
+    } else {
+      if (tela !== PADRAO.tela) p.push('tela=' + tela);
+      for (const c of campos) { const v = n(c); if (v !== null && Math.abs(v - cam[c]) >= 1) p.push(c + '=' + Math.round(v)); }
+    }
     const ab = n('abelhas');
     if (ab !== null && ab !== PADRAO.abelhas) p.push('abelhas=' + Math.max(0, Math.min(8, Math.round(ab))));
+    const vel = n('velocidade');
+    if (vel !== null && Math.abs(vel - PADRAO.velocidade) > .01) p.push('velocidade=' + vel);
     const fe = n('festa');
     if (fe !== null && fe !== PADRAO.festa) p.push('festa=' + Math.max(0, fe));
     return p;
   }
 
   function build() {
-    const p = params();
-    const url = new URL('moldura-camera.html', location.href);
-    url.search = p.length ? '?' + p.join('&') : '';
-    $('url').textContent = url.href;
-    $('preview').href = url.href;
-    $('zoom').href = url.href + (p.length ? '&' : '?') + 'zoom';
-    const m = document.querySelector('#live .moldura');
-    if (m) m.src = url.href + (p.length ? '&' : '?') + 'semfundo';
+    const v = n('velocidade');
+    $('velTxt').textContent = String(v).replace('.', ',') + '×';
+    const link = p => { const u = new URL('moldura-camera.html', location.href); u.search = p.length ? '?' + p.join('&') : ''; return u.href; };
+    const solta = modelo === 'solta', p = params(solta), url = link(p);
+    $('url').textContent = url;
+    $('preview').href = url;
+    $('zoom').href = url + (p.length ? '&' : '?') + 'zoom';
+    $('zoom').hidden = solta;
+    if (solta) {
+      const w = n('largura') || CAM.largura, h = n('altura') || CAM.altura, f = fonteSolta(w, h);
+      const x = n('x'), y = n('y');
+      $('info').innerHTML = 'No OBS: fonte Navegador com <b>' + f.w + ' × ' + f.h + '</b>. A câmera fica ' + f.esq + ' px da esquerda e ' + f.cima + ' px do topo da fonte' +
+        (x !== null && y !== null ? ': com a câmera em ' + x + ', ' + y + ', a fonte vai em <b>x ' + Math.round(x - f.esq) + ', y ' + Math.round(y - f.cima) + '</b>.' : '.') +
+        ' Depois agrupe a moldura com a câmera pra mover as duas juntas.';
+    } else {
+      $('info').innerHTML = 'No OBS: fonte Navegador com <b>' + tela.replace('x', ' × ') + '</b> (a tela toda). A moldura cai sozinha em volta da câmera, em ' + (n('x') ?? '') + ', ' + (n('y') ?? '') + '.';
+    }
+    const m = document.querySelector('#live .moldura');           // na live a moldura é sempre a de tela inteira, que sabe onde a câmera está
+    if (m) { const pt = params(false); m.src = link(pt) + (pt.length ? '&' : '?') + 'semfundo'; }
   }
-  for (const id of ['nome', 'x', 'y', 'largura', 'altura', 'abelhas', 'festa']) { $(id).addEventListener('input', build); $(id).addEventListener('change', build); }
+  for (const id of ['nome', 'x', 'y', 'largura', 'altura', 'abelhas', 'velocidade', 'festa']) { $(id).addEventListener('input', build); $(id).addEventListener('change', build); }
 
   // a live só carrega quando pedir (o player da Twitch é pesado)
   $('verLive').onclick = e => {
