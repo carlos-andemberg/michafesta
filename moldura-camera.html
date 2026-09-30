@@ -552,6 +552,10 @@ const CONFIG = {
     const anel = Math.floor(rnd(0, 4)), pos = rnd(0, 1), [x, y] = SOLTA ? noAnel(anel, pos, 45 * k) : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
     const b = { i, el, x, y, anel, pos, vx: 0, vy: 0, lado: 1, fx: 1, ang: 0,
                 tam: .85 * k * rnd(.82, 1.05), fase: rnd(0, 7), fw: rnd(1.6, 2.8), modo: 'voa', ate: 0, alvo: null, rastro: [] };
+    // limite: o centro da abelha fica longe da borda da fonte o bastante pra ela inteira aparecer
+    // (metade dela pros lados, as asas pra cima, a barriga pra baixo, mais o balanço)
+    const ex = 28 * b.tam + 3 * k, et = 36 * b.tam + 3 * k, eb = 20 * b.tam + 3 * k;
+    b.lim = { x0: ex, x1: SW - ex, y0: et, y1: SH - eb };
     novoAlvo(b);
     return b;
   }
@@ -564,7 +568,7 @@ const CONFIG = {
     // solto: pousa numa flor por perto, ou anda pelo anel; nos cantos passa pela quina, pra não cortar por cima do rosto
     const perto = pousos.filter(p => Math.hypot(p[0] - b.x, p[1] - b.y) < 170 * k);
     if (perto.length && Math.random() < .35) { b.alvo = escolhe(perto).slice(); return; }
-    const off = rnd(30, 60) * k, p = b.pos + rnd(-.5, .5);
+    const off = rnd(28, 52) * k, p = b.pos + rnd(-.5, .5);
     if (p >= 1) { b.alvo = noAnel(b.anel, 1, off); b.anel = (b.anel + 1) % 4; b.pos = 0; }
     else if (p <= 0) { b.alvo = noAnel(b.anel, 0, off); b.anel = (b.anel + 3) % 4; b.pos = 1; }
     else { b.pos = p; b.alvo = noAnel(b.anel, p, off); }
@@ -589,6 +593,8 @@ const CONFIG = {
       if (b.modo === 'paira' && t > b.ate) novoAlvo(b);
       [tx, ty] = b.alvo;
     }
+    const lim = b.lim;                                 // o alvo nunca fica fora do limite
+    tx = Math.min(lim.x1, Math.max(lim.x0, tx)); ty = Math.min(lim.y1, Math.max(lim.y0, ty));
     const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
     if (!emFesta && b.modo === 'voa' && d < 10 * k) { b.modo = 'paira'; b.ate = t + rnd(.5, 2.4); }
     if (b.modo === 'paira' && !emFesta) {
@@ -601,9 +607,16 @@ const CONFIG = {
       const amort = 1 - Math.min(1, 2.4 * dv);
       b.vx *= amort; b.vy *= amort;
     }
+    const parede = 40 * k, empurra = 2200 * k * dv;    // chegando perto da borda, um empurrão de volta: faz a curva antes
+    if (b.x < lim.x0 + parede) b.vx += empurra * Math.min(1, (lim.x0 + parede - b.x) / parede);
+    if (b.x > lim.x1 - parede) b.vx -= empurra * Math.min(1, (b.x - lim.x1 + parede) / parede);
+    if (b.y < lim.y0 + parede) b.vy += empurra * Math.min(1, (lim.y0 + parede - b.y) / parede);
+    if (b.y > lim.y1 - parede) b.vy -= empurra * Math.min(1, (b.y - lim.y1 + parede) / parede);
     const vmax = (emFesta ? 460 : 220) * k, v = Math.hypot(b.vx, b.vy);
     if (v > vmax) { b.vx *= vmax / v; b.vy *= vmax / v; }
     b.x += b.vx * dv; b.y += b.vy * dv;
+    if (b.x < lim.x0) { b.x = lim.x0; b.vx = Math.max(0, b.vx); } else if (b.x > lim.x1) { b.x = lim.x1; b.vx = Math.min(0, b.vx); }
+    if (b.y < lim.y0) { b.y = lim.y0; b.vy = Math.max(0, b.vy); } else if (b.y > lim.y1) { b.y = lim.y1; b.vy = Math.min(0, b.vy); }
 
     if (b.vx > 22 * k) b.lado = 1; else if (b.vx < -22 * k) b.lado = -1;
     b.fx += (b.lado - b.fx) * Math.min(1, dt * 14);   // vira de lado espremendo
@@ -643,6 +656,7 @@ const CONFIG = {
         p.x += (p.vx + Math.sin(t * 3 + p.fase) * 32 * k) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
         a *= Math.max(0, Math.min(1, ((SOLTA ? RR : X + W - 6 * k) - p.x) / (18 * k)));   // some antes do minimapa
         a *= Math.max(0, Math.min(1, (Y + H * .3 - p.y) / (36 * k)));        // e antes de chegar no rosto
+        a *= Math.max(0, Math.min(1, Math.min(p.x - RX, RR - p.x, p.y - RY) / (24 * k)));   // e antes da borda da fonte
         if (a <= 0) continue;
         const sy = Math.abs(Math.cos(t * p.vf + p.fase)) * .8 + .2;         // gira no ar
         ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, sy);

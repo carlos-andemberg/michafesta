@@ -31,7 +31,7 @@ A borda é de mel com textura de favo, e um brilho corre por ela de vez em quand
 
 ### Só a câmera: pra mover junto com a webcam
 
-Com `?solta`, a moldura tem borda **em volta toda**: flores nos quatro cantos, mel pingando pra fora embaixo, e as abelhas voam contornando a câmera (nunca por cima dela). Na festinha elas dão uma volta correndo em volta da moldura.
+Com `?solta`, a moldura tem borda **em volta toda**: flores nos quatro cantos, mel pingando pra fora embaixo, e as abelhas voam contornando a câmera (nunca por cima dela) sem sair da fonte, então nunca aparecem cortadas na borda. Na festinha elas dão uma volta correndo em volta da moldura.
 
 1. **Fontes → + → Navegador**, URL `https://michafesta.carlosandemberg.com.br/moldura-camera.html?solta`
 2. **Largura 603, Altura 497**, pra uma câmera de 423 × 237. Com outro tamanho (`largura=`/`altura=`), o gerador de link mostra o tamanho da fonte.
