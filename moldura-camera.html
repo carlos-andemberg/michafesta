@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>MichaFesta · Moldura da Câmera</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+<!--
+  ================================================================
+   MICHAFESTA · MOLDURA DA CÂMERA  -  fonte "Navegador" do OBS
+  ================================================================
+   Moldura amarelinha de mel, com abelhas, folhas e flores.
+
+   Foi feita pro lugar da câmera na live: embaixo, encostada no
+   rodapé, entre o painel de itens (esquerda) e o minimapa (direita).
+   Por isso só tem borda em CIMA e dos LADOS, e as bordas dos lados
+   ficam por dentro da câmera: nada cobre os itens nem o minimapa.
+   O girassol, o favo, a plaquinha com o nome e as abelhas ficam em
+   cima da câmera, onde só tem o mapa do jogo.
+
+   De tempos em tempos tem festinha: a plaquinha pula, as flores
+   soltam pétalas e as abelhas voam em volta do nome.
+
+   COMO COLOCAR NO OBS
+     1. Fontes -> + -> Navegador
+     2. URL: o link desta página
+     3. Largura e altura = tamanho da tela do OBS (1920 x 1080).
+        A fonte cobre a tela toda e a moldura cai sozinha em volta
+        da câmera.
+     4. Deixe a moldura ACIMA da câmera na lista de fontes.
+
+   OPÇÕES NO LINK (junte com &)
+     ?x=1190&y=843             canto de cima-esquerdo da câmera, em pixels da tela
+     ?largura=423&altura=237   tamanho da câmera
+     ?tela=1280x720            tamanho da tela do OBS, se não for 1920x1080
+     ?nome=Micha               texto da plaquinha (?nome= esconde)
+     ?abelhas=5                quantas abelhas voando (0 a 8)
+     ?festa=40                 segundos entre as festinhas (0 = desliga)
+     ?zoom                     só na prévia: mostra a moldura de pertinho
+
+   Abrindo no navegador aparece um fundo de exemplo, com o painel de
+   itens e o minimapa de mentirinha no lugar em que ficam na live
+   (clique em qualquer lugar pra fazer a festa). Dentro do OBS o
+   fundo fica transparente.
+  ================================================================
+-->
+<script>
+const CONFIG = {
+  nome: "MichaFesta",          // texto na plaquinha ("" = esconde)  ·  link: ?nome=Micha
+
+  tela: { largura: 1920, altura: 1080 },                  // tela do OBS em que as medidas abaixo valem
+  cam: { x: 1190, y: 843, largura: 423, altura: 237 },    // onde a câmera fica (medido da live)  ·  link: ?x=&y=&largura=&altura=
+
+  abelhas: 3,                  // quantas abelhas voando  ·  link: ?abelhas=5
+  festa: 25,                   // segundos entre as festinhas, 0 = desliga  ·  link: ?festa=40
+  rastro: true,                // rastrinho pontilhado atrás das abelhas
+  pingos: true,                // pingos de mel escorrendo da borda
+
+  borda: 10,                   // grossura da borda (numa câmera de 423 de largura; cresce junto com ela)
+  raio: 20,                    // cantos de cima arredondados
+  posNome: 0.5,                // onde fica a plaquinha na borda de cima (0 = esquerda, 1 = direita)
+
+  cores: {
+    mel: "#ffcc2e",
+    melEscuro: "#f39200",
+    claro: "#fff4b8",
+    contorno: "#3b2308",       // marrom escuro dos contornos (estilo figurinha)
+    folha: "#6cc644",
+    folhaEscura: "#338a2c",
+    caule: "#4f9a33",
+    flores: ["#ffffff", "#ff8fb8", "#ffa84d"],   // margaridas brancas, florzinhas rosa e laranja
+  },
+
+  fundoDemo: "auto",           // "auto" = fundo de exemplo só fora do OBS · true / false força
+};
+</script>
+
+<style>
+  * { box-sizing:border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent; }
+  body.demo { background:#07110e; cursor:pointer; }
+
+  .palco { position:absolute; left:0; top:0; transform-origin:0 0; overflow:hidden; }
+  .palco > svg, .palco > canvas { position:absolute; display:block; overflow:visible; }
+
+  /* ---------- prévia (só fora do OBS) ---------- */
+  .demo-only { display:none; }
+  body.demo .palco { background:radial-gradient(ellipse at 42% 38%, #2b4d3c 0%, #173328 45%, #0a1814 100%); }
+  body.demo .demo-only { display:flex; }
+  .cam-box {
+    position:absolute; align-items:center; justify-content:center;
+    background:repeating-linear-gradient(135deg, rgba(255,255,255,.04) 0 14px, transparent 14px 28px), #ece6d6;
+    color:rgba(59,35,8,.35); font:700 28px 'Fredoka', 'Segoe UI', Arial, sans-serif; letter-spacing:3px; text-transform:uppercase;
+  }
+  .hud { position:absolute; background:linear-gradient(#13232a, #0a141a); border:3px solid #7d6a3a; border-radius:4px;
+         box-shadow:inset 0 0 0 2px #0a0f12; align-items:flex-start; justify-content:center;
+         color:rgba(230,210,150,.4); font:600 16px 'Segoe UI', Arial, sans-serif; padding-top:8px; }
+  .hud.mapa { background:linear-gradient(135deg, #1e3b33, #10231f); }
+  .retrato { position:absolute; width:58px; height:58px; margin:-29px 0 0 -29px; border-radius:50%;
+             background:radial-gradient(circle at 50% 40%, #6b5a70, #2a2230); border:3px solid #b8964a; }
+  .retrato::after { content:""; position:absolute; left:2px; right:2px; bottom:-16px; height:7px; background:#35c24f; border:1px solid #000; }
+  .dica { position:absolute; left:48px; top:40px; flex-direction:column; gap:10px;
+          color:rgba(255,255,255,.6); font:600 30px 'Fredoka', 'Segoe UI', Arial, sans-serif; }
+  .dica b { color:#ffd84a; font-size:44px; }
+
+  /* ---------- enfeites (SVG) ---------- */
+  .folha { transform-box:fill-box; transform-origin:0% 50%; animation:gira var(--t) ease-in-out var(--d) infinite alternate; }
+  .flor  { transform-box:fill-box; transform-origin:50% 50%; animation:gira var(--t) ease-in-out var(--d) infinite alternate; }
+  .pop, .placa { transform-box:fill-box; transform-origin:50% 50%; }
+  .pingo { transform-box:fill-box; transform-origin:50% 0%; animation:escorre var(--t) ease-in-out var(--d) infinite; }
+  .gota  { transform-box:fill-box; transform-origin:50% 50%; opacity:0; animation:cai var(--t) linear var(--d) infinite; }
+  .brilho-borda { animation:corre var(--t) linear infinite; }
+  .reflexo { transform-box:fill-box; transform-origin:50% 50%; animation:reflexo 5.5s ease-in-out 1s infinite; }
+  .asa { transform-box:fill-box; transform-origin:50% 100%; animation:bate .085s ease-in-out infinite alternate; }
+  .asa.de-tras { animation-delay:-.04s; }
+
+  @keyframes gira    { from { transform:rotate(calc(var(--a) * -1)) } to { transform:rotate(var(--a)) } }
+  @keyframes bate    { from { transform:scaleY(1) } to { transform:scaleY(.4) } }
+  @keyframes corre   { from { stroke-dashoffset:var(--de) } to { stroke-dashoffset:var(--ate) } }
+  @keyframes reflexo { 0% { transform:translateX(0) skewX(-20deg) } 40%, 100% { transform:translateX(var(--dist)) skewX(-20deg) } }
+  @keyframes escorre { 0% { transform:scaleY(.72) } 74% { transform:scaleY(1.14) } 80% { transform:scaleY(.74) } 100% { transform:scaleY(.72) } }
+  @keyframes cai {
+    0%, 73.9% { opacity:0; transform:translateY(0) scale(.6) }
+    74%       { opacity:1; transform:translateY(0) scale(1); animation-timing-function:cubic-bezier(.45, 0, 1, .6) }
+    95%       { opacity:.95; transform:translateY(var(--queda)) scale(.85, 1.15) }
+    100%      { opacity:0; transform:translateY(var(--queda)) scale(.85, 1.15) }
+  }
+</style>
+</head>
+<body>
+
+<div class="palco">
+  <div class="demo-only dica"></div>
+  <div class="demo-only cam-box">câmera</div>
+  <svg class="cena" xmlns="http://www.w3.org/2000/svg"></svg>
+  <canvas></canvas>
+  <svg class="enxame" xmlns="http://www.w3.org/2000/svg"></svg>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const C = CONFIG, COR = C.cores, CONT = COR.contorno;
+  const q = new URLSearchParams(location.search);
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const escolhe = arr => arr[Math.floor(Math.random() * arr.length)];
+  const f = n => Math.round(n * 100) / 100;
+  const num = (key, def, min, max) => {
+    const v = parseFloat(q.get(key));
+    return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
+  };
+
+  // ---------- tela e câmera (em pixels da tela do OBS) ----------
+  let SW = C.tela.largura, SH = C.tela.altura;
+  const tq = (q.get('tela') || '').match(/^(\d{3,4})(?:\s*[x×*]\s*(\d{3,4}))?$/i);
+  if (tq) { SW = +tq[1]; SH = tq[2] ? +tq[2] : Math.round(SW * 9 / 16); }
+  const esc = SW / C.tela.largura;                      // ?tela=1280x720 sem x/y: as medidas do CONFIG encolhem junto
+  const X = num('x', C.cam.x * esc, 0, SW - 60), Y = num('y', C.cam.y * esc, 0, SH - 40);
+  const W = num('largura', C.cam.largura * esc, 60, SW - X), H = num('altura', C.cam.altura * esc, 34, SH - Y + 40);
+  const k = Math.min(2.4, Math.max(.4, W / 423));      // tamanho dos enfeites acompanha a câmera
+  const NOME = (q.has('nome') ? q.get('nome') : C.nome).trim().slice(0, 24);
+  const NA = Math.round(num('abelhas', C.abelhas, 0, 8));
+  const FESTA = num('festa', C.festa, 0, 3600);
+  const B = C.borda * k, CW = 3.2 * k;                  // grossura da borda e do contorno
+  const ins = B / 2 + CW / 2;                           // linha do meio da borda, por dentro da câmera
+  const aberta = Y + H >= SH - 3;                       // câmera encostada no rodapé: sem borda embaixo
+
+  // área que o desenho ocupa (o resto da tela fica vazio)
+  const RX = Math.max(0, X - 190 * k), RY = Math.max(0, Y - 230 * k);
+  const RR = Math.min(SW, X + W + 14 * k), RB = Math.min(SH, Y + H + 30 * k);
+  const RW = RR - RX, RH = RB - RY;
+
+  const palco = document.querySelector('.palco');
+  const cena = document.querySelector('.cena'), enxame = document.querySelector('.enxame');
+  const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
+  palco.style.width = SW + 'px'; palco.style.height = SH + 'px';
+  for (const el of [cena, enxame, canvas]) el.style.cssText = 'left:' + RX + 'px;top:' + RY + 'px;width:' + RW + 'px;height:' + RH + 'px';
+  for (const el of [cena, enxame]) el.setAttribute('viewBox', RX + ' ' + RY + ' ' + RW + ' ' + RH);
+
+  // fundo de exemplo só fora do OBS (o OBS injeta window.obsstudio na página)
+  let demo = C.fundoDemo === true || (C.fundoDemo === 'auto' && !window.obsstudio);
+  if (q.has('preview')) demo = true;
+  if (q.has('semfundo')) demo = false;
+  if (demo) document.body.classList.add('demo');
+  const zoom = demo && q.has('zoom');
+  document.querySelector('.cam-box').style.cssText = 'left:' + X + 'px;top:' + Y + 'px;width:' + W + 'px;height:' + H + 'px';
+  document.querySelector('.dica').innerHTML =
+    '<b>OBS · fonte Navegador · ' + SW + ' × ' + SH + '</b><span>clique em qualquer lugar pra fazer a festa 🐝</span>';
+  if (demo) {                                          // HUD de mentirinha, medido da live (1920 x 1080)
+    const s = SW / 1920, hud = (cls, x, y, w, h, txt) => {
+      const d = document.createElement('div');
+      d.className = 'demo-only ' + cls;
+      d.style.cssText = 'left:' + x * s + 'px;top:' + y * s + 'px' + (w ? ';width:' + w * s + 'px;height:' + h * s + 'px' : '');
+      if (txt) d.textContent = txt;
+      palco.insertBefore(d, cena);
+    };
+    hud('hud', 517, 940, 559, 150, 'habilidades');
+    hud('hud', 1076, 968, 114, 120, 'itens');
+    hud('hud mapa', 1613, 769, 310, 320, 'minimapa');
+    for (const x of [1667, 1740, 1812, 1884]) hud('retrato', x, 707, 0, 0);
+  }
+
+  // ================================================================
+  //  desenhos (strings SVG, coordenadas da tela)
+  // ================================================================
+  const anima = (t0, t1, a) => 'style="--t:' + f(rnd(t0, t1)) + 's;--d:-' + f(rnd(0, 6)) + 's;--a:' + a + 'deg"';
+
+  function folha(x, y, ang, len, escura) {
+    const w = len * .5;
+    const d = 'M0 0C' + f(len * .25) + ' ' + f(-w) + ' ' + f(len * .72) + ' ' + f(-w * .8) + ' ' + f(len) + ' 0' +
+              'C' + f(len * .72) + ' ' + f(w * .8) + ' ' + f(len * .25) + ' ' + f(w) + ' 0 0Z';
+    return '<g transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(ang) + ')"><g class="folha" ' + anima(2.6, 4.6, f(rnd(3, 7))) + '>' +
+      '<path d="' + d + '" fill="url(#' + (escura ? 'gFolha2' : 'gFolha') + ')" stroke="' + CONT + '" stroke-width="' + f(1.7 * k) + '" stroke-linejoin="round"/>' +
+      '<path d="M' + f(len * .1) + ' 0Q' + f(len * .5) + ' ' + f(-w * .12) + ' ' + f(len * .84) + ' 0" fill="none" stroke="' + CONT + '" stroke-opacity=".4" stroke-width="' + f(1.1 * k) + '" stroke-linecap="round"/>' +
+    '</g></g>';
+  }
+
+  const flores = [];                                    // pra festa (pop) e pros pousos das abelhas
+  function flor(x, y, r, miolo, giro) {
+    flores.push({ x, y, r });
+    return '<g transform="translate(' + f(x) + ' ' + f(y) + ')"><g class="pop" data-x="' + f(x) + '"><g class="flor" ' + anima(3, 5.5, giro) + '>' + miolo + '</g></g></g>';
+  }
+  function margarida(x, y, r, cor) {
+    let s = '';
+    for (let i = 0; i < 10; i++) {
+      s += '<ellipse cx="0" cy="' + f(-r * .55) + '" rx="' + f(r * .22) + '" ry="' + f(r * .45) + '" transform="rotate(' + i * 36 + ')" fill="' + cor + '" stroke="' + CONT + '" stroke-width="' + f(1.2 * k) + '"/>';
+    }
+    s += '<circle r="' + f(r * .34) + '" fill="#ffcf2e" stroke="' + CONT + '" stroke-width="' + f(1.3 * k) + '"/>' +
+         '<circle cx="' + f(-r * .1) + '" cy="' + f(-r * .1) + '" r="' + f(r * .1) + '" fill="#fff" opacity=".7"/>';
+    return flor(x, y, r, s, 9);
+  }
+  function florzinha(x, y, r, cor) {
+    let s = '';
+    for (let i = 0; i < 5; i++) {
+      const a = i * 72 * Math.PI / 180 - Math.PI / 2;
+      s += '<circle cx="' + f(Math.cos(a) * r * .5) + '" cy="' + f(Math.sin(a) * r * .5) + '" r="' + f(r * .44) + '" fill="' + cor + '" stroke="' + CONT + '" stroke-width="' + f(1.2 * k) + '"/>';
+    }
+    s += '<circle r="' + f(r * .27) + '" fill="#ffd23a" stroke="' + CONT + '" stroke-width="' + f(1.2 * k) + '"/>';
+    return flor(x, y, r, s, 12);
+  }
+  function girassol(x, y, r) {
+    let s = '';
+    const n = 14;
+    for (const [R, cor, off] of [[r, '#f5a000', 360 / n / 2], [r * .88, '#ffd21f', 0]]) {
+      const L = R - r * .3, w = L * .42;
+      for (let i = 0; i < n; i++) {
+        s += '<path transform="rotate(' + f(i * 360 / n + off) + ') translate(0 ' + f(-r * .3) + ')" d="M0 0Q' + f(w) + ' ' + f(-L * .45) + ' 0 ' + f(-L) + 'Q' + f(-w) + ' ' + f(-L * .45) + ' 0 0Z" fill="' + cor + '" stroke="' + CONT + '" stroke-width="' + f(1.4 * k) + '" stroke-linejoin="round"/>';
+      }
+    }
+    const m = r * .44;
+    s += '<circle r="' + f(m) + '" fill="url(#gMiolo)" stroke="' + CONT + '" stroke-width="' + f(1.8 * k) + '"/>';
+    for (let i = 0; i < 16; i++) {                      // sementinhas na beirada do miolo
+      const a = i / 16 * Math.PI * 2;
+      s += '<circle cx="' + f(Math.cos(a) * m * .74) + '" cy="' + f(Math.sin(a) * m * .74) + '" r="' + f(.95 * k) + '" fill="#2b1605" opacity=".55"/>';
+    }
+    s += '<circle cx="' + f(-m * .32) + '" cy="' + f(-m * .08) + '" r="' + f(m * .11) + '" fill="' + CONT + '"/>' +     // carinha
+         '<circle cx="' + f(m * .32) + '" cy="' + f(-m * .08) + '" r="' + f(m * .11) + '" fill="' + CONT + '"/>' +
+         '<path d="M' + f(-m * .22) + ' ' + f(m * .2) + 'Q0 ' + f(m * .45) + ' ' + f(m * .22) + ' ' + f(m * .2) + '" fill="none" stroke="' + CONT + '" stroke-width="' + f(1.5 * k) + '" stroke-linecap="round"/>' +
+         '<ellipse cx="' + f(-m * .52) + '" cy="' + f(m * .22) + '" rx="' + f(m * .14) + '" ry="' + f(m * .09) + '" fill="#ff7f9c" opacity=".7"/>' +
+         '<ellipse cx="' + f(m * .52) + '" cy="' + f(m * .22) + '" rx="' + f(m * .14) + '" ry="' + f(m * .09) + '" fill="#ff7f9c" opacity=".7"/>' +
+         '<ellipse cx="' + f(-m * .3) + '" cy="' + f(-m * .5) + '" rx="' + f(m * .26) + '" ry="' + f(m * .12) + '" fill="#fff" opacity=".25"/>';
+    return flor(x, y, r, s, 5);
+  }
+
+  // cipó ondulado de (x1,y1) até (x2,y2)
+  function cipo(x1, y1, x2, y2) {
+    const L = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / L, uy = (y2 - y1) / L, nx = -uy, ny = ux;
+    const amp = 3 * k, n = Math.max(2, Math.round(L / (16 * k)));
+    let d = 'M' + f(x1) + ' ' + f(y1);
+    for (let i = 1; i <= n; i++) {
+      const s0 = (i - .5) / n * L, s1 = i / n * L, o = (i % 2 ? 1 : -1) * amp;
+      d += 'Q' + f(x1 + ux * s0 + nx * o) + ' ' + f(y1 + uy * s0 + ny * o) + ' ' + f(x1 + ux * s1) + ' ' + f(y1 + uy * s1);
+    }
+    return {
+      L, ang: Math.atan2(uy, ux) * 180 / Math.PI, at: s => [x1 + ux * s, y1 + uy * s],
+      svg: '<path d="' + d + '" fill="none" stroke="' + CONT + '" stroke-width="' + f(4.6 * k) + '" stroke-linecap="round"/>' +
+           '<path d="' + d + '" fill="none" stroke="' + COR.caule + '" stroke-width="' + f(2.2 * k) + '" stroke-linecap="round"/>',
+    };
+  }
+  // folhas ao longo do cipó; lados: 1 / -1 / 0 = os dois (alternando)
+  function folhasNoCipo(c, passo, lados, comp) {
+    let s = '', lado = 1;
+    for (let d = passo * .6; d < c.L - 4 * k; d += passo * rnd(.85, 1.15)) {
+      const [x, y] = c.at(d), l = lados || lado;
+      s += folha(x, y, c.ang + l * rnd(38, 62), comp * rnd(.85, 1.15), Math.random() < .4);
+      lado = -lado;
+    }
+    return s;
+  }
+
+  // pingo de mel pendurado em (x,y); cai = distância da gota que despenca (0 = só escorre)
+  function pingo(x, y, r, L, cai, fill, e) {
+    const s = r * .9;
+    const corpo = 'L' + f(r) + ' ' + f(L - r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(-r) + ' ' + f(L - r) + 'L' + f(-r) + ' ' + f(r) + 'Q' + f(-r) + ' 0 ' + f(-r - s) + ' 0';
+    const t = anima(5.5, 9, 0);
+    let g = '<g transform="translate(' + f(x) + ' ' + f(y) + ')">' +
+      '<g class="pingo" ' + t + '>' +
+        '<path d="M' + f(-r - s) + ' ' + f(-e) + 'L' + f(r + s) + ' ' + f(-e) + 'L' + f(r + s) + ' 0Q' + f(r) + ' 0 ' + f(r) + ' ' + f(r) + corpo + 'Z" fill="' + fill + '"/>' +
+        '<path d="M' + f(r + s) + ' 0Q' + f(r) + ' 0 ' + f(r) + ' ' + f(r) + corpo + '" fill="none" stroke="' + CONT + '" stroke-width="' + f(1.8 * k) + '" stroke-linejoin="round"/>' +
+        '<path d="M' + f(-r * .4) + ' ' + f(r * .9) + 'L' + f(-r * .4) + ' ' + f(Math.max(r * .95, L - r * 1.2)) + '" stroke="#fff" stroke-opacity=".65" stroke-width="' + f(1.3 * k) + '" stroke-linecap="round"/>' +
+      '</g>';
+    if (cai && C.pingos) {
+      const g0 = L * 1.12 - r * .55, gr = r * .9;
+      g += '<g class="gota" ' + t.replace('style="', 'style="--queda:' + f(cai) + 'px;') + '>' +
+        '<path d="M0 ' + f(g0 - gr * 1.5) + 'Q' + f(gr) + ' ' + f(g0 - gr * .3) + ' ' + f(gr) + ' ' + f(g0 + gr * .2) + 'A' + f(gr) + ' ' + f(gr) + ' 0 0 1 ' + f(-gr) + ' ' + f(g0 + gr * .2) + 'Q' + f(-gr) + ' ' + f(g0 - gr * .3) + ' 0 ' + f(g0 - gr * 1.5) + 'Z" fill="' + COR.melEscuro + '" stroke="' + CONT + '" stroke-width="' + f(1.5 * k) + '"/>' +
+        '<circle cx="' + f(-gr * .35) + '" cy="' + f(g0) + '" r="' + f(gr * .25) + '" fill="#fff" opacity=".7"/>' +
+      '</g>';
+    }
+    return g + '</g>';
+  }
+
+  // um favinho (hexágono de ponta chata)
+  function celula(cx, cy, r, tipo) {
+    const hex = rr => {
+      let d = '';
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; d += (i ? 'L' : 'M') + f(cx + Math.cos(a) * rr) + ' ' + f(cy + Math.sin(a) * rr); }
+      return d + 'Z';
+    };
+    const fill = tipo === 'tampa' ? '#ffe7a3' : tipo === 'vazio' ? '#c97400' : 'url(#gMel)';
+    let s = '<path d="' + hex(r) + '" fill="' + fill + '" stroke="' + CONT + '" stroke-width="' + f(2.2 * k) + '" stroke-linejoin="round"/>';
+    if (tipo === 'tampa') s += '<path d="' + hex(r * .6) + '" fill="none" stroke="' + CONT + '" stroke-opacity=".25" stroke-width="' + f(1.2 * k) + '"/>';
+    if (tipo === 'vazio') s += '<path d="' + hex(r * .62) + '" fill="#9e5a00"/>';
+    if (tipo !== 'vazio') s += '<ellipse cx="' + f(cx - r * .3) + '" cy="' + f(cy - r * .38) + '" rx="' + f(r * .3) + '" ry="' + f(r * .15) + '" transform="rotate(-18 ' + f(cx - r * .3) + ' ' + f(cy - r * .38) + ')" fill="#fff" opacity=".6"/>';
+    return s;
+  }
+
+  // ================================================================
+  //  monta a cena (precisa da fonte carregada pra medir o nome)
+  // ================================================================
+  const FAMILIA = '"Fredoka", "Segoe UI", Arial, sans-serif';
+  let placa = null, placaEl = null, bees = [], pousos = [], comecou = false;
+
+  function montar() {
+    // ---- plaquinha com o nome: hexágono esticado, de mel ----
+    const cyB = Y + ins;                                 // altura da linha de cima da borda
+    if (NOME) {
+      const g = document.createElement('canvas').getContext('2d');
+      let fs = 29 * k;
+      g.font = '700 ' + fs + 'px ' + FAMILIA;
+      let m = g.measureText(NOME), tw = m.width;
+      const maxW = W * .6 - 50 * k;
+      if (tw > maxW) { fs *= maxW / tw; g.font = '700 ' + fs + 'px ' + FAMILIA; m = g.measureText(NOME); tw = m.width; }
+      const TH = Math.max(fs * 1.55, 34 * k), pt = TH * .34, pad = 13 * k, TW = tw + 2 * pad + 2 * pt;
+      let cx = X + W * C.posNome;
+      cx = Math.min(X + W - TW / 2 - 60 * k, Math.max(X + TW / 2 + 48 * k, cx));
+      placa = { cx, cy: cyB, TW, TH, pt, fs, asc: m.actualBoundingBoxAscent || fs * .7, desc: m.actualBoundingBoxDescent || 0 };
+    }
+
+    const partes = [];
+    const xl = X + ins, xr = X + W - ins, yt = Y + ins, r = Math.max(3, C.raio * k - ins);
+    const yb = aberta ? SH + 30 : Y + H - ins;
+
+    // ---- defs ----
+    const hr = 4.6 * k, hw = Math.sqrt(3) * hr;
+    partes.push('<defs>' +
+      '<linearGradient id="gBorda" gradientUnits="userSpaceOnUse" x1="0" y1="' + f(Y) + '" x2="0" y2="' + f(Math.min(SH, Y + H)) + '">' +
+        '<stop offset="0" stop-color="' + COR.mel + '"/><stop offset="1" stop-color="' + COR.melEscuro + '"/></linearGradient>' +
+      '<linearGradient id="gMel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + COR.claro + '"/><stop offset=".45" stop-color="' + COR.mel + '"/><stop offset="1" stop-color="' + COR.melEscuro + '"/></linearGradient>' +
+      '<linearGradient id="gFolha" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9be067"/><stop offset="1" stop-color="' + COR.folha + '"/></linearGradient>' +
+      '<linearGradient id="gFolha2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + COR.folha + '"/><stop offset="1" stop-color="' + COR.folhaEscura + '"/></linearGradient>' +
+      '<radialGradient id="gMiolo" cx=".4" cy=".35" r=".7"><stop offset="0" stop-color="#a7661c"/><stop offset="1" stop-color="#4a2a0a"/></radialGradient>' +
+      '<linearGradient id="gReflexo" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+      '<pattern id="pFavo" patternUnits="userSpaceOnUse" width="' + f(hw) + '" height="' + f(3 * hr) + '">' +
+        '<path d="M' + f(hw / 2) + ' ' + f(hr * .5) + 'L' + f(hw) + ' ' + f(hr) + 'L' + f(hw) + ' ' + f(2 * hr) + 'L' + f(hw / 2) + ' ' + f(2.5 * hr) + 'L0 ' + f(2 * hr) + 'L0 ' + f(hr) + 'ZM' +
+          f(hw / 2) + ' 0L' + f(hw / 2) + ' ' + f(hr * .5) + 'M' + f(hw / 2) + ' ' + f(2.5 * hr) + 'L' + f(hw / 2) + ' ' + f(3 * hr) + '" fill="none" stroke="' + COR.melEscuro + '" stroke-opacity=".55" stroke-width="' + f(1.1 * k) + '"/>' +
+      '</pattern>' +
+      (placa ? '<clipPath id="clipPlaca"><path d="' + formaPlaca() + '"/></clipPath>' : '') +
+    '</defs>');
+
+    // ---- canto de cima-esquerdo: girassol com folhas (as de trás ficam atrás da borda) ----
+    const gx = X + 8 * k, gy = Y + 6 * k, gr = 28 * k;
+    for (const [a, l] of [[-150, 40], [-112, 36], [-68, 30], [168, 36], [120, 34], [-18, 32]]) partes.push(folha(gx, gy, a + rnd(-6, 6), l * k, Math.random() < .5));
+
+    // ---- canto de cima-direito: favo de mel com folhas atrás ----
+    const hc = 12.5 * k, fx = X + W - 26 * k, fy = Y - 6 * k;
+    for (const [a, l] of [[-165, 34], [-122, 32], [-80, 26], [178, 30]]) partes.push(folha(fx - 12 * k, fy, a + rnd(-6, 6), l * k, Math.random() < .5));
+
+    // ---- a borda: mel com textura de favo, brilho correndo ----
+    const dB = aberta
+      ? 'M' + f(xl) + ' ' + f(yb) + 'L' + f(xl) + ' ' + f(yt + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xl + r) + ' ' + f(yt) + 'L' + f(xr - r) + ' ' + f(yt) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xr) + ' ' + f(yt + r) + 'L' + f(xr) + ' ' + f(yb)
+      : 'M' + f(xl) + ' ' + f(yb - r) + 'L' + f(xl) + ' ' + f(yt + r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xl + r) + ' ' + f(yt) + 'L' + f(xr - r) + ' ' + f(yt) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xr) + ' ' + f(yt + r) +
+        'L' + f(xr) + ' ' + f(yb - r) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xr - r) + ' ' + f(yb) + 'L' + f(xl + r) + ' ' + f(yb) + 'A' + f(r) + ' ' + f(r) + ' 0 0 1 ' + f(xl) + ' ' + f(yb - r) + 'Z';
+    const linha = (stroke, w, extra) => '<path d="' + dB + '" fill="none" stroke="' + stroke + '" stroke-width="' + f(w) + '" stroke-linejoin="round" ' + (extra || '') + '/>';
+    partes.push(linha(CONT, B + CW), linha('url(#gBorda)', B), linha('url(#pFavo)', B),
+      '<path d="' + dB + '" transform="translate(' + f(-B * .2) + ' ' + f(-B * .2) + ')" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="' + f(B * .2) + '" stroke-linecap="round"/>',
+      '<path class="brilho-borda" d="' + dB + '" fill="none" stroke="#fff" stroke-opacity=".85" stroke-width="' + f(B * .5) + '" stroke-linecap="round"/>');
+
+    // ---- pingos de mel escorrendo da borda ----
+    const yP = Y + ins + B / 2;
+    if (C.pingos) {
+      partes.push(pingo(X + W * .2, yP, 4.5 * k, 20 * k, 60 * k, 'url(#gBorda)', B * .45));
+      partes.push(pingo(X + W * .8, yP, 4 * k, 13 * k, 0, 'url(#gBorda)', B * .45));
+    }
+
+    // ---- cipós com folhas e florzinhas: de um canto até a plaquinha, e da plaquinha até o outro canto ----
+    const yc = Y + ins - .5 * k;
+    const ateA = placa ? placa.cx - placa.TW / 2 + 4 * k : fx - 30 * k;
+    const doB = placa ? placa.cx + placa.TW / 2 - 4 * k : null;
+    const c1 = cipo(X + 26 * k, yc, ateA, yc);
+    partes.push(c1.svg, folhasNoCipo(c1, 22 * k, 0, 19 * k));
+    if (doB !== null && fx - 34 * k - doB > 10 * k) {
+      const c2 = cipo(doB, yc, fx - 34 * k, yc);
+      partes.push(c2.svg, folhasNoCipo(c2, 22 * k, 0, 19 * k));
+    }
+    const c3 = cipo(xl, Y + 30 * k, xl, Y + 98 * k);          // desce pelo lado esquerdo (fora da câmera só tem jogo até os itens)
+    partes.push(c3.svg, folhasNoCipo(c3, 20 * k, 0, 18 * k));
+    const c4 = cipo(xr, Y + 30 * k, xr, Y + 78 * k);          // lado direito: folhas só pra dentro, o minimapa fica do lado
+    partes.push(c4.svg, folhasNoCipo(c4, 20 * k, 1, 17 * k));
+
+    // flores
+    partes.push(girassol(gx, gy, gr));
+    partes.push(margarida(X + 46 * k, Y - 14 * k, 10 * k, COR.flores[0]));
+    partes.push(florzinha(X - 24 * k, Y + 36 * k, 8 * k, COR.flores[1]));
+    partes.push(florzinha(xl, Y + 100 * k, 7 * k, COR.flores[2]));
+    if (c1.L > 70 * k) partes.push(florzinha(X + 26 * k + c1.L * .62, yc - 1 * k, 7.5 * k, COR.flores[1]));
+    partes.push(margarida(fx - 62 * k, Y - 20 * k, 9.5 * k, COR.flores[0]));
+    partes.push(florzinha(xr - 1 * k, Y + 80 * k, 6.5 * k, COR.flores[2]));
+
+    // favo: pingo comprido saindo da célula de baixo
+    const s3 = Math.sqrt(3) / 2 * hc;
+    const cel = [[fx, fy, 'mel'], [fx - 1.5 * hc, fy + s3, 'mel'], [fx - 1.5 * hc, fy - s3, 'tampa'], [fx, fy - 2 * s3, 'vazio'], [fx - 3 * hc, fy, 'tampa']];
+    partes.push(pingo(fx - 1.5 * hc, fy + 2 * s3 - 1.5 * k, 4 * k, 26 * k, 70 * k, COR.melEscuro, 1.5 * k));
+    partes.push('<g class="pop" data-x="' + f(fx - hc) + '">' + cel.map(c => celula(c[0], c[1], hc, c[2])).join('') + '</g>');
+    flores.push({ x: fx - hc, y: fy - s3, r: hc * 1.6 });
+
+    // plaquinha
+    if (placa) {
+      const p = placa, d = formaPlaca();
+      if (C.pingos) partes.push(pingo(p.cx - p.TW * .22, p.cy + p.TH / 2, 3.5 * k, 12 * k, 0, COR.melEscuro, 1.5 * k));
+      const x0 = p.cx - p.TW / 2, y0 = p.cy - p.TH / 2, base = p.cy + (p.asc - p.desc) / 2;
+      const txt = (extra) => '<text x="' + f(p.cx) + '" y="' + f(base) + '" text-anchor="middle" font-family=\'' + FAMILIA.replace(/"/g, '') + '\' font-weight="700" font-size="' + f(p.fs) + '" ' + extra + '></text>';
+      partes.push('<g class="placa">' +
+        '<path d="' + d + '" transform="translate(0 ' + f(3.5 * k) + ')" fill="rgba(0,0,0,.3)"/>' +
+        '<path d="' + d + '" fill="url(#gMel)" stroke="' + CONT + '" stroke-width="' + f(3.4 * k) + '" stroke-linejoin="round"/>' +
+        '<path d="' + d + '" fill="url(#pFavo)" opacity=".45"/>' +
+        '<path d="M' + f(x0 + p.pt + 3 * k) + ' ' + f(y0 + 4.5 * k) + 'L' + f(x0 + p.TW - p.pt - 3 * k) + ' ' + f(y0 + 4.5 * k) + '" stroke="#fff" stroke-opacity=".6" stroke-width="' + f(2.4 * k) + '" stroke-linecap="round"/>' +
+        '<g clip-path="url(#clipPlaca)"><rect class="reflexo" style="--dist:' + f(p.TW + 90 * k) + 'px" x="' + f(x0 - 60 * k) + '" y="' + f(y0) + '" width="' + f(34 * k) + '" height="' + f(p.TH) + '" fill="url(#gReflexo)"/></g>' +
+        txt('fill="' + CONT + '" transform="translate(0 ' + f(2.6 * k) + ')" stroke="' + CONT + '" stroke-width="' + f(6 * k) + '" stroke-linejoin="round"') +
+        txt('fill="#fff" stroke="' + CONT + '" stroke-width="' + f(6 * k) + '" stroke-linejoin="round" paint-order="stroke"') +
+      '</g>');
+    }
+
+    cena.innerHTML = partes.join('');
+    for (const t of cena.querySelectorAll('text')) t.textContent = NOME;
+    placaEl = cena.querySelector('.placa');
+
+    // o brilho da borda: um traço que corre a borda toda e some por um tempo
+    const bb = cena.querySelector('.brilho-borda'), L = bb.getTotalLength(), D = 40 * k;
+    bb.style.strokeDasharray = f(D) + ' ' + f(2 * L);
+    bb.style.setProperty('--de', f(D) + 'px'); bb.style.setProperty('--ate', f(-2 * L) + 'px');
+    bb.style.setProperty('--t', f((D + 2 * L) / (260 * k)) + 's');
+
+    // pousos das abelhas: em cima das flores
+    pousos = flores.map(fl => [fl.x, fl.y - fl.r - 12 * k]);
+    for (let i = 0; i < NA; i++) bees.push(novaAbelha(i));
+  }
+
+  function formaPlaca() {
+    const p = placa, x0 = p.cx - p.TW / 2, x1 = p.cx + p.TW / 2, y0 = p.cy - p.TH / 2, y1 = p.cy + p.TH / 2;
+    return 'M' + f(x0) + ' ' + f(p.cy) + 'L' + f(x0 + p.pt) + ' ' + f(y0) + 'L' + f(x1 - p.pt) + ' ' + f(y0) + 'L' + f(x1) + ' ' + f(p.cy) +
+           'L' + f(x1 - p.pt) + ' ' + f(y1) + 'L' + f(x0 + p.pt) + ' ' + f(y1) + 'Z';
+  }
+
+  // ================================================================
+  //  abelhas
+  // ================================================================
+  const zona = { x0: X - 60 * k, x1: X + W - 36 * k, y0: Math.max(RY + 24 * k, Y - 125 * k), y1: Y - 34 * k };
+  enxame.innerHTML = '<defs>' +
+    '<linearGradient id="gCorpo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb000"/></linearGradient>' +
+    '<clipPath id="clipCorpo"><ellipse cx="0" cy="3" rx="18" ry="13.5"/></clipPath></defs>';
+
+  function abelhaSVG() {
+    const asa = (x, y, rot, cls) => '<g transform="translate(' + x + ' ' + y + ') rotate(' + rot + ')"><ellipse class="asa ' + cls + '" cx="0" cy="-9" rx="7.5" ry="11.5" fill="#eaf8ff" fill-opacity=".8" stroke="' + CONT + '" stroke-width="1.4"/></g>';
+    return asa(-5, -12, -24, 'de-tras') +
+      '<path d="M-16 1L-25 4.5L-16 8Z" fill="' + CONT + '" stroke="' + CONT + '" stroke-width="1.5" stroke-linejoin="round"/>' +
+      '<ellipse cx="0" cy="3" rx="18" ry="13.5" fill="url(#gCorpo)"/>' +
+      '<g clip-path="url(#clipCorpo)" fill="' + CONT + '"><rect x="-10" y="-12" width="5.5" height="30"/><rect x="0" y="-12" width="5.5" height="30"/></g>' +
+      '<ellipse cx="0" cy="3" rx="18" ry="13.5" fill="none" stroke="' + CONT + '" stroke-width="2.2"/>' +
+      '<ellipse cx="-3" cy="-4.5" rx="8" ry="2.6" fill="#fff" opacity=".5"/>' +
+      '<circle cx="11" cy="0" r="3" fill="' + CONT + '"/><circle cx="12" cy="-1.1" r="1.1" fill="#fff"/>' +
+      '<ellipse cx="13.5" cy="7" rx="3" ry="2" fill="#ff7f9c" opacity=".75"/>' +
+      '<path d="M8.5 8Q11 10.8 14 8.6" fill="none" stroke="' + CONT + '" stroke-width="1.4" stroke-linecap="round"/>' +
+      '<path d="M9 -9Q10 -17 16 -19M5 -10Q4 -18 8 -21" fill="none" stroke="' + CONT + '" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<circle cx="16" cy="-19" r="2" fill="' + CONT + '"/><circle cx="8" cy="-21" r="2" fill="' + CONT + '"/>' +
+      asa(3, -13, 16, '');
+  }
+
+  function novaAbelha(i) {
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    el.innerHTML = abelhaSVG();
+    enxame.appendChild(el);
+    const b = { i, el, x: rnd(zona.x0, zona.x1), y: rnd(zona.y0, zona.y1), vx: 0, vy: 0, lado: 1, fx: 1, ang: 0,
+                tam: .85 * k * rnd(.82, 1.05), fase: rnd(0, 7), fw: rnd(1.6, 2.8), modo: 'voa', ate: 0, alvo: null, rastro: [] };
+    novoAlvo(b);
+    return b;
+  }
+  function novoAlvo(b) {
+    b.modo = 'voa';
+    b.alvo = pousos.length && Math.random() < .4 ? escolhe(pousos).slice() : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
+  }
+
+  let festaT0 = -99, festaAte = -99;
+  function moverAbelha(b, t, dt) {
+    const emFesta = t < festaAte && placa;
+    let tx, ty;
+    if (emFesta) {                                     // festa: rodam em volta da plaquinha
+      const a = (t - festaT0) * 2.8 + b.i * Math.PI * 2 / bees.length;
+      tx = placa.cx + Math.cos(a) * (placa.TW / 2 + 26 * k); ty = placa.cy + Math.sin(a) * (placa.TH / 2 + 14 * k);
+    } else {
+      if (b.modo === 'paira' && t > b.ate) novoAlvo(b);
+      [tx, ty] = b.alvo;
+    }
+    const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
+    if (!emFesta && b.modo === 'voa' && d < 10 * k) { b.modo = 'paira'; b.ate = t + rnd(.5, 2.4); }
+    if (b.modo === 'paira' && !emFesta) {
+      const amort = 1 - Math.min(1, 6 * dt);
+      b.vx = b.vx * amort + dx * 8 * dt; b.vy = b.vy * amort + dy * 8 * dt;
+    } else {
+      const A = (emFesta ? 2600 : 950) * k * Math.min(1, d / (50 * k));
+      const w = Math.sin(t * b.fw + b.fase) * 420 * k;   // zigue-zague de abelha
+      b.vx += (dx / d * A - dy / d * w) * dt; b.vy += (dy / d * A + dx / d * w) * dt;
+      const amort = 1 - Math.min(1, 2.4 * dt);
+      b.vx *= amort; b.vy *= amort;
+    }
+    const vmax = (emFesta ? 460 : 220) * k, v = Math.hypot(b.vx, b.vy);
+    if (v > vmax) { b.vx *= vmax / v; b.vy *= vmax / v; }
+    b.x += b.vx * dt; b.y += b.vy * dt;
+
+    if (b.vx > 22 * k) b.lado = 1; else if (b.vx < -22 * k) b.lado = -1;
+    b.fx += (b.lado - b.fx) * Math.min(1, dt * 14);   // vira de lado espremendo
+    const alvoAng = Math.max(-26, Math.min(26, Math.atan2(b.vy, Math.abs(b.vx) + 40 * k) * 180 / Math.PI * .7));
+    b.ang += (alvoAng - b.ang) * Math.min(1, dt * 8);
+    const bob = Math.sin(t * 9 + b.fase) * 2 * k;
+    b.el.setAttribute('transform', 'translate(' + f(b.x) + ' ' + f(b.y + bob) + ') scale(' + f(b.tam * b.fx) + ' ' + f(b.tam) + ') rotate(' + f(b.ang) + ')');
+
+    if (C.rastro) {                                    // pontinhos saindo do bumbum
+      const px = b.x - b.lado * 20 * b.tam, py = b.y + bob + 5 * b.tam, u = b.rastro[b.rastro.length - 1];
+      if (!u || Math.hypot(px - u.x, py - u.y) > 8 * k) { b.rastro.push({ x: px, y: py, t }); if (b.rastro.length > 40) b.rastro.shift(); }
+    }
+  }
+
+  // ================================================================
+  //  partículas (canvas): pétalas, pólen, brilhinhos, rastro
+  // ================================================================
+  const parts = [];
+  const WHITE = '#fff';
+  function petala(x, y, vx, vy, cor, vida) {
+    if (parts.length < 260) parts.push({ tipo: 'petala', x, y, vx, vy, cor, vida, idade: 0, rot: rnd(0, 6.3), vr: rnd(-6, 6), vf: rnd(5, 11), fase: rnd(0, 7), tam: rnd(.8, 1.25) });
+  }
+  function polen(x, y) { if (parts.length < 260) parts.push({ tipo: 'polen', x, y, vx: rnd(-8, 8) * k, vy: rnd(-26, -12) * k, vida: rnd(1.8, 3), idade: 0, fase: rnd(0, 7) }); }
+  function brilho(x, y, vida) { if (parts.length < 260) parts.push({ tipo: 'brilho', x, y, vida, idade: 0, tam: rnd(6, 12) * k, rot: rnd(0, 1.5) }); }
+
+  function desenhaParticulas(t, dt) {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const p = parts[i];
+      p.idade += dt;
+      if (p.idade >= p.vida) { parts.splice(i, 1); continue; }
+      const u = p.idade / p.vida;
+      let a = u > .7 ? (1 - u) / .3 : 1;
+      if (p.tipo === 'petala') {
+        p.vy += 330 * k * dt;
+        if (p.vy > 70 * k) p.vy += (70 * k - p.vy) * Math.min(1, 3 * dt);     // cai devagar, planando
+        p.vx *= 1 - Math.min(1, 1.3 * dt);
+        p.x += (p.vx + Math.sin(t * 3 + p.fase) * 32 * k) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+        a *= Math.max(0, Math.min(1, (X + W - 6 * k - p.x) / (18 * k)));     // some antes do minimapa
+        a *= Math.max(0, Math.min(1, (Y + H * .3 - p.y) / (36 * k)));        // e antes de chegar no rosto
+        if (a <= 0) continue;
+        const sy = Math.abs(Math.cos(t * p.vf + p.fase)) * .8 + .2;         // gira no ar
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, sy);
+        ctx.globalAlpha = a;
+        ctx.beginPath(); ctx.ellipse(0, 0, 5.5 * k * p.tam, 2.8 * k * p.tam, 0, 0, 7);
+        ctx.fillStyle = p.cor; ctx.fill();
+        ctx.lineWidth = 1.1 * k; ctx.strokeStyle = 'rgba(59,35,8,.7)'; ctx.stroke();
+        ctx.restore();
+      } else if (p.tipo === 'polen') {
+        p.x += (p.vx + Math.sin(t * 2 + p.fase) * 10 * k) * dt; p.y += p.vy * dt;
+        a *= Math.min(1, u * 5);
+        ctx.globalAlpha = a * .22; ctx.fillStyle = '#fff3a0';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4 * k, 0, 7); ctx.fill();
+        ctx.globalAlpha = a * .95; ctx.fillStyle = '#fff8d0';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.6 * k, 0, 7); ctx.fill();
+      } else {
+        const s = p.tam * Math.sin(u * Math.PI);
+        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot + u * 1.2);
+        ctx.globalAlpha = 1; ctx.fillStyle = '#fff8d6';
+        ctx.beginPath();
+        ctx.moveTo(0, -s); ctx.quadraticCurveTo(0, 0, s, 0); ctx.quadraticCurveTo(0, 0, 0, s);
+        ctx.quadraticCurveTo(0, 0, -s, 0); ctx.quadraticCurveTo(0, 0, 0, -s);
+        ctx.fill(); ctx.restore();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function desenhaRastros(t) {
+    ctx.fillStyle = '#fff6d0';
+    for (const b of bees) {
+      while (b.rastro.length && t - b.rastro[0].t > .9) b.rastro.shift();
+      for (const p of b.rastro) {
+        const u = (t - p.t) / .9;
+        ctx.globalAlpha = .7 * (1 - u);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8 * k * (1 - u * .5), 0, 7); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // ================================================================
+  //  festa: plaquinha pula, flores estouram em pétalas, abelhas rodam
+  // ================================================================
+  function festa(t) {
+    festaT0 = t; festaAte = t + 3.2;
+    const cx = placa ? placa.cx : X + W / 2, cy = placa ? placa.cy : Y;
+    if (placaEl && placaEl.animate) {
+      placaEl.animate([
+        { transform: 'scale(1) rotate(0deg)' }, { transform: 'scale(1.2) rotate(-3deg)', offset: .25 },
+        { transform: 'scale(.94) rotate(2deg)', offset: .5 }, { transform: 'scale(1.06) rotate(-1deg)', offset: .75 },
+        { transform: 'scale(1) rotate(0deg)' },
+      ], { duration: 850, easing: 'ease-out' });
+    }
+    for (const el of cena.querySelectorAll('.pop')) {
+      const d = Math.abs(el.dataset.x - cx) / W;             // estouram em onda, do nome pros cantos
+      if (el.animate) el.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)', offset: .35 }, { transform: 'scale(.92)', offset: .7 }, { transform: 'scale(1)' }],
+        { duration: 600, delay: d * 700, easing: 'ease-out' });
+    }
+    const cores = COR.flores.concat([COR.mel, COR.claro]);
+    for (let i = 0; i < 44; i++) {
+      const a = rnd(-Math.PI * .92, -Math.PI * .08), v = rnd(140, 360) * k;
+      petala(cx + rnd(-.4, .4) * (placa ? placa.TW : W * .5), cy - rnd(0, 10) * k, Math.cos(a) * v, Math.sin(a) * v, escolhe(cores), rnd(2.6, 3.8));
+    }
+    for (const fl of flores) {
+      for (let i = 0; i < 3; i++) {
+        const a = rnd(-Math.PI * .9, -Math.PI * .1), v = rnd(60, 170) * k;
+        petala(fl.x, fl.y, Math.cos(a) * v, Math.sin(a) * v, escolhe(cores), rnd(2, 3));
+      }
+    }
+    for (let i = 0; i < 12; i++) brilho(cx + rnd(-.6, .6) * (placa ? placa.TW : W * .5), cy + rnd(-40, 10) * k, rnd(.5, 1));
+  }
+
+  // ================================================================
+  //  encaixe na janela / fonte do OBS
+  // ================================================================
+  let K = 1;
+  function ajustar() {
+    let s = Math.min(innerWidth / SW, innerHeight / SH);
+    let ox = (innerWidth - SW * s) / 2, oy = (innerHeight - SH * s) / 2;
+    if (zoom) {                                        // prévia: só a moldura, bem de perto
+      const vx = Math.max(0, X - 300 * k), vy = Math.max(0, Y - 250 * k), vw = Math.min(SW, X + W + 200 * k) - vx, vh = Math.min(SH, Y + H + 20 * k) - vy;
+      s = Math.min(innerWidth / vw, innerHeight / vh);
+      ox = (innerWidth - vw * s) / 2 - vx * s; oy = (innerHeight - vh * s) / 2 - vy * s;
+    }
+    palco.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + s + ')';
+    K = s * (window.devicePixelRatio || 1);
+    canvas.width = Math.max(1, Math.round(RW * K)); canvas.height = Math.max(1, Math.round(RH * K));
+  }
+
+  // ================================================================
+  //  loop
+  // ================================================================
+  let last = 0, proxFesta = 0, proxPolen = 0, proxBrilho = 0;
+  function frame(ms) {
+    const t = ms / 1000, dt = Math.min(.05, Math.max(0, t - last));
+    last = t;
+    if (FESTA > 0 && t >= proxFesta) { festa(t); proxFesta = t + FESTA; }
+    if (t >= proxPolen && flores.length) {             // pólen subindo das flores
+      const fl = escolhe(flores);
+      polen(fl.x + rnd(-.5, .5) * fl.r, fl.y - fl.r * .3);
+      proxPolen = t + rnd(.25, .7);
+    }
+    if (t >= proxBrilho) {                             // brilhinho no favo ou na plaquinha
+      const fl = placa && Math.random() < .5 ? { x: placa.cx + rnd(-.4, .4) * placa.TW, y: placa.cy - placa.TH * .3 } : flores[flores.length - 1];
+      if (fl) brilho(fl.x + rnd(-6, 6) * k, fl.y + rnd(-6, 6) * k, rnd(.5, .8));
+      proxBrilho = t + rnd(1.2, 3);
+    }
+    for (const b of bees) moverAbelha(b, t, dt);
+
+    ctx.setTransform(K, 0, 0, K, -RX * K, -RY * K);
+    ctx.clearRect(RX, RY, RW, RH);
+    desenhaRastros(t);
+    desenhaParticulas(t, dt);
+    requestAnimationFrame(frame);
+  }
+
+  function comecar() {
+    if (comecou) return;
+    comecou = true;
+    montar();
+    ajustar();
+    addEventListener('resize', ajustar);
+    const t = performance.now() / 1000;
+    last = t; proxFesta = t + 1.5; proxPolen = t + .5; proxBrilho = t + 1;
+    addEventListener('pointerdown', () => {            // clique (ou "Interagir" no OBS) = festa agora
+      const now = performance.now() / 1000;
+      if (now - festaT0 > 1) { festa(now); if (FESTA > 0) proxFesta = now + FESTA; }
+    });
+    requestAnimationFrame(frame);
+  }
+  Promise.race([document.fonts.load('700 30px Fredoka', NOME || 'M'), new Promise(r => setTimeout(r, 3000))]).then(comecar, comecar);
+})();
+</script>
+</body>
+</html>

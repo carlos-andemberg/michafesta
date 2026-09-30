@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MichaFesta · Moldura da Câmera</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --mel:#ffcc2e; --mel2:#f39200; --claro:#fff4b8; --cont:#3b2308; --folha:#6cc644; }
+  * { box-sizing:border-box; }
+  body { margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; padding:32px 16px;
+         font-family:'Fredoka','Segoe UI',Arial,sans-serif; color:#fff8e6;
+         background:
+           radial-gradient(ellipse at 50% 0%, rgba(255,204,46,.18), transparent 60%),
+           radial-gradient(ellipse at 50% 30%, #2a3a22 0%, #18241a 55%, #0d140f 100%); }
+  main { width:100%; max-width:760px; }
+  h1 { font-weight:700; font-size:clamp(46px, 12vw, 80px); line-height:1; margin:0; text-align:center; letter-spacing:.5px;
+       color:#fff; -webkit-text-stroke:0; text-shadow:0 3px 0 var(--cont), 3px 0 0 var(--cont), -3px 0 0 var(--cont), 0 -3px 0 var(--cont),
+       2px 2px 0 var(--cont), -2px 2px 0 var(--cont), 2px -2px 0 var(--cont), -2px -2px 0 var(--cont), 0 7px 0 rgba(0,0,0,.35); }
+  h1 span { color:var(--mel); }
+  p.sub { text-align:center; margin:12px 0 30px; color:rgba(255,248,230,.6); font-weight:500; }
+  .card { padding:24px; border-radius:22px; background:rgba(20,28,18,.85);
+          border:3px solid var(--mel); box-shadow:0 0 0 3px var(--cont), 0 14px 40px rgba(0,0,0,.4); margin-bottom:20px; }
+  .card h2 { margin:0 0 6px; font-size:26px; font-weight:700; color:var(--mel); }
+  .card p { margin:0 0 18px; color:rgba(255,248,230,.7); line-height:1.5; }
+  .fields { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:14px; margin-bottom:20px; }
+  .field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .field > span { font-size:13px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,248,230,.5); font-weight:600; }
+  .field.wide { grid-column:span 2; }
+  .pair { display:flex; align-items:center; gap:6px; }
+  .pair i { font-style:normal; color:rgba(255,248,230,.4); }
+  input, select { font:inherit; font-size:16px; color:#fff8e6; background:rgba(0,0,0,.35); border:2px solid rgba(255,204,46,.25);
+                  border-radius:10px; padding:7px 10px; width:100%; min-width:0; }
+  input:focus, select:focus { outline:none; border-color:var(--mel); }
+  select option { background:#18241a; }
+  @media (max-width:520px) { .field.wide { grid-column:auto; } }
+  .label { font-size:13px; letter-spacing:1.5px; text-transform:uppercase; color:rgba(255,248,230,.5); font-weight:600; margin-bottom:8px; }
+  .url { display:flex; gap:8px; align-items:stretch; margin-bottom:14px; }
+  .url code { flex:1; min-width:0; overflow-x:auto; white-space:nowrap; font-size:14px; padding:10px 12px; border-radius:10px;
+              background:rgba(0,0,0,.4); border:2px solid rgba(255,204,46,.15); color:var(--claro); }
+  button.act, a.act { font:inherit; font-weight:700; font-size:16px; border:2px solid var(--cont); border-radius:12px; padding:8px 18px; cursor:pointer;
+                      color:var(--cont); background:linear-gradient(var(--claro), var(--mel) 45%, var(--mel2)); text-decoration:none;
+                      display:inline-flex; align-items:center; white-space:nowrap; box-shadow:0 3px 0 var(--cont); }
+  button.act:active, a.act:active { transform:translateY(2px); box-shadow:0 1px 0 var(--cont); }
+  a.act.ghost { background:transparent; color:#fff8e6; border-color:rgba(255,204,46,.45); box-shadow:none; }
+  .links { display:flex; gap:8px; flex-wrap:wrap; }
+  .tips { color:rgba(255,248,230,.6); font-size:15px; line-height:1.7; margin:0; }
+  .tips b { color:var(--mel); font-weight:600; }
+  .live { position:relative; width:100%; aspect-ratio:16 / 9; border-radius:12px; overflow:hidden; background:#000; margin-bottom:12px; }
+  .live:empty { display:none; }
+  .live iframe { position:absolute; inset:0; width:100%; height:100%; border:0; }
+  .live iframe.moldura { pointer-events:none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Micha<span>Festa</span></h1>
+  <p class="sub">moldura da câmera · fonte Navegador do OBS 🐝🌻</p>
+
+  <section class="card">
+    <h2>🐝 Moldura da câmera</h2>
+    <p>Borda de mel com girassol, favo, folhas, florzinhas e abelhas voando. Ela já vem no lugar da câmera da live: embaixo, entre os itens e o minimapa. Só tem borda em cima e dos lados, e nada cobre o HUD do jogo. De tempos em tempos tem festinha: pétalas e abelhas em volta do nome.</p>
+
+    <div class="fields">
+      <label class="field"><span>Nome</span><input type="text" id="nome" value="MichaFesta" maxlength="24"></label>
+      <label class="field"><span>Tela do OBS</span>
+        <select id="tela">
+          <option value="1920x1080">1920 × 1080</option>
+          <option value="1280x720">1280 × 720</option>
+        </select>
+      </label>
+      <div class="field wide"><span>Posição da câmera (x, y)</span>
+        <div class="pair">
+          <input type="number" id="x" value="1190" min="0" max="3840" aria-label="Posição x">
+          <i>,</i>
+          <input type="number" id="y" value="843" min="0" max="2160" aria-label="Posição y">
+        </div>
+      </div>
+      <div class="field wide"><span>Tamanho da câmera</span>
+        <div class="pair">
+          <input type="number" id="largura" value="423" min="60" max="3840" aria-label="Largura">
+          <i>×</i>
+          <input type="number" id="altura" value="237" min="34" max="2160" aria-label="Altura">
+        </div>
+      </div>
+      <label class="field"><span>Abelhas</span><input type="number" id="abelhas" value="3" min="0" max="8"></label>
+      <label class="field"><span>Festinha a cada (s)</span><input type="number" id="festa" value="25" min="0" max="3600" step="1"></label>
+    </div>
+
+    <div class="label">Link pro OBS</div>
+    <div class="url"><code id="url"></code><button class="act" id="copy">Copiar</button></div>
+    <div class="links">
+      <a class="act ghost" id="preview" target="_blank" rel="noopener">Prévia</a>
+      <a class="act ghost" id="zoom" target="_blank" rel="noopener">De pertinho</a>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>📺 Em cima da live</h2>
+    <p>A live da MichaFesta com a moldura por cima, pra conferir o encaixe. A câmera muda de lugar em outras cenas, então confira durante uma partida.</p>
+    <div class="live" id="live"></div>
+    <a class="act ghost" id="verLive" href="#">Mostrar a live</a>
+  </section>
+
+  <p class="tips">
+    <b>No OBS:</b> Fontes → + → Navegador → cole o link. Largura e altura = tamanho da tela do OBS (1920 × 1080). Deixe a moldura acima da câmera.<br>
+    <b>Mudou a câmera de lugar?</b> Botão direito na câmera → Transformar → Editar transformação: copie a posição e o tamanho pros campos acima. O tamanho da tela fica em Configurações → Vídeo → Resolução base.<br>
+    <b>Nome vazio</b> esconde a plaquinha. <b>Festinha 0</b> desliga a festa. Na prévia, clique pra fazer a festa.
+  </p>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  // medido da live, numa tela 1920 x 1080
+  const CAM = { x: 1190, y: 843, largura: 423, altura: 237 };
+  const PADRAO = { nome: 'MichaFesta', tela: '1920x1080', abelhas: 3, festa: 25 };
+  const campos = ['x', 'y', 'largura', 'altura'];
+  let tela = PADRAO.tela;
+
+  const escala = t => parseInt(t) / 1920;
+  const camPadrao = t => Object.fromEntries(campos.map(c => [c, Math.round(CAM[c] * escala(t))]));
+  const n = id => { const v = parseFloat($(id).value); return Number.isFinite(v) ? v : null; };
+
+  // trocou a tela: campos que ainda estão no padrão acompanham
+  $('tela').onchange = () => {
+    const antes = camPadrao(tela), depois = camPadrao($('tela').value);
+    for (const c of campos) if (n(c) === antes[c]) $(c).value = depois[c];
+    tela = $('tela').value;
+    build();
+  };
+
+  // o link só leva o que é diferente do padrão
+  function params() {
+    const p = [], cam = camPadrao(tela);
+    const nome = $('nome').value.trim();
+    if (nome !== PADRAO.nome) p.push('nome=' + encodeURIComponent(nome));
+    if (tela !== PADRAO.tela) p.push('tela=' + tela);
+    for (const c of campos) { const v = n(c); if (v !== null && Math.abs(v - cam[c]) >= 1) p.push(c + '=' + Math.round(v)); }
+    const ab = n('abelhas');
+    if (ab !== null && ab !== PADRAO.abelhas) p.push('abelhas=' + Math.max(0, Math.min(8, Math.round(ab))));
+    const fe = n('festa');
+    if (fe !== null && fe !== PADRAO.festa) p.push('festa=' + Math.max(0, fe));
+    return p;
+  }
+
+  function build() {
+    const p = params();
+    const url = new URL('moldura-camera.html', location.href);
+    url.search = p.length ? '?' + p.join('&') : '';
+    $('url').textContent = url.href;
+    $('preview').href = url.href;
+    $('zoom').href = url.href + (p.length ? '&' : '?') + 'zoom';
+    const m = document.querySelector('#live .moldura');
+    if (m) m.src = url.href + (p.length ? '&' : '?') + 'semfundo';
+  }
+  for (const id of ['nome', 'x', 'y', 'largura', 'altura', 'abelhas', 'festa']) { $(id).addEventListener('input', build); $(id).addEventListener('change', build); }
+
+  // a live só carrega quando pedir (o player da Twitch é pesado)
+  $('verLive').onclick = e => {
+    e.preventDefault();
+    const box = $('live');
+    if (box.firstChild) { box.innerHTML = ''; e.target.textContent = 'Mostrar a live'; return; }
+    const player = document.createElement('iframe');
+    player.allow = 'autoplay; fullscreen';
+    player.src = 'https://player.twitch.tv/?channel=michafesta&muted=true&autoplay=true&parent=' + encodeURIComponent(location.hostname);
+    const moldura = document.createElement('iframe');
+    moldura.className = 'moldura';
+    box.append(player, moldura);
+    e.target.textContent = 'Esconder a live';
+    build();
+  };
+
+  $('copy').onclick = async e => {
+    try { await navigator.clipboard.writeText($('url').textContent); e.target.textContent = 'Copiado!'; }
+    catch { e.target.textContent = 'Selecione e copie'; }
+    setTimeout(() => e.target.textContent = 'Copiar', 1500);
+  };
+  build();
+</script>
+</body>
+</html>
