@@ -53,7 +53,7 @@ Junte com `&`, ex.: `moldura-camera.html?abelhas=5&festa=40`.
 | `largura=423&altura=237` | Tamanho da câmera. Os enfeites crescem ou encolhem junto |
 | `tela=1280x720` | Tamanho da tela do OBS, se não for 1920 × 1080. Sem `x`/`y`, a posição padrão encolhe junto |
 | `nome=Micha` | Texto da plaquinha (`nome=` sem nada esconde a plaquinha) |
-| `abelhas=5` | Quantas abelhas voando (0 a 8) |
+| `abelhas=5` | Quantas abelhas voando (0 a 500) |
 | `velocidade=0.4` | Velocidade das abelhas: `0.6` é o padrão, `1` é rápida, `0.3` é bem devagar |
 | `festa=40` | Segundos entre as festinhas (`festa=0` desliga) |
 | `zoom` | Só na prévia: mostra a moldura de pertinho |

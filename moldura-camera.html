@@ -41,7 +41,7 @@
      ?largura=423&altura=237   tamanho da câmera
      ?tela=1280x720            tamanho da tela do OBS, se não for 1920x1080
      ?nome=Micha               texto da plaquinha (?nome= esconde)
-     ?abelhas=5                quantas abelhas voando (0 a 8)
+     ?abelhas=5                quantas abelhas voando (0 a 500)
      ?velocidade=0.4           velocidade das abelhas (1 = rápida, 0.6 = padrão, 0.3 = bem devagar)
      ?festa=40                 segundos entre as festinhas (0 = desliga)
      ?zoom                     só na prévia: mostra a moldura de pertinho
@@ -122,11 +122,8 @@ const CONFIG = {
   .gota  { transform-box:fill-box; transform-origin:50% 50%; opacity:0; animation:cai var(--t) linear var(--d) infinite; }
   .brilho-borda { animation:corre var(--t) linear infinite; }
   .reflexo { transform-box:fill-box; transform-origin:50% 50%; animation:reflexo 5.5s ease-in-out 1s infinite; }
-  .asa { transform-box:fill-box; transform-origin:50% 100%; animation:bate .085s ease-in-out infinite alternate; }
-  .asa.de-tras { animation-delay:-.04s; }
 
   @keyframes gira    { from { transform:rotate(calc(var(--a) * -1)) } to { transform:rotate(var(--a)) } }
-  @keyframes bate    { from { transform:scaleY(1) } to { transform:scaleY(.4) } }
   @keyframes corre   { from { stroke-dashoffset:var(--de) } to { stroke-dashoffset:var(--ate) } }
   @keyframes reflexo { 0% { transform:translateX(0) skewX(-20deg) } 40%, 100% { transform:translateX(var(--dist)) skewX(-20deg) } }
   @keyframes escorre { 0% { transform:scaleY(.72) } 74% { transform:scaleY(1.14) } 80% { transform:scaleY(.74) } 100% { transform:scaleY(.72) } }
@@ -145,7 +142,6 @@ const CONFIG = {
   <div class="demo-only cam-box">câmera</div>
   <svg class="cena" xmlns="http://www.w3.org/2000/svg"></svg>
   <canvas></canvas>
-  <svg class="enxame" xmlns="http://www.w3.org/2000/svg"></svg>
 </div>
 
 <script>
@@ -181,7 +177,7 @@ const CONFIG = {
     SW = Math.round(X + W + 90 * k); SH = Math.round(Y + H + 90 * k);
   }
   const NOME = (q.has('nome') ? q.get('nome') : C.nome).trim().slice(0, 24);
-  const NA = Math.round(num('abelhas', C.abelhas, 0, 8));
+  const NA = Math.round(num('abelhas', C.abelhas, 0, 500));
   const VEL = num('velocidade', C.velocidade, .1, 3);
   const FESTA = num('festa', C.festa, 0, 3600);
   const B = C.borda * k, CW = 3.2 * k;                  // grossura da borda e do contorno
@@ -194,11 +190,11 @@ const CONFIG = {
   const RW = RR - RX, RH = RB - RY;
 
   const palco = document.querySelector('.palco');
-  const cena = document.querySelector('.cena'), enxame = document.querySelector('.enxame');
+  const cena = document.querySelector('.cena');
   const canvas = document.querySelector('canvas'), ctx = canvas.getContext('2d');
   palco.style.width = SW + 'px'; palco.style.height = SH + 'px';
-  for (const el of [cena, enxame, canvas]) el.style.cssText = 'left:' + RX + 'px;top:' + RY + 'px;width:' + RW + 'px;height:' + RH + 'px';
-  for (const el of [cena, enxame]) el.setAttribute('viewBox', RX + ' ' + RY + ' ' + RW + ' ' + RH);
+  for (const el of [cena, canvas]) el.style.cssText = 'left:' + RX + 'px;top:' + RY + 'px;width:' + RW + 'px;height:' + RH + 'px';
+  cena.setAttribute('viewBox', RX + ' ' + RY + ' ' + RW + ' ' + RH);
 
   // fundo de exemplo só fora do OBS (o OBS injeta window.obsstudio na página)
   let demo = C.fundoDemo === true || (C.fundoDemo === 'auto' && !window.obsstudio);
@@ -525,37 +521,73 @@ const CONFIG = {
     return lado === 0 ? [x0 + (x1 - x0) * pos, y0] : lado === 1 ? [x1, y0 + (y1 - y0) * pos]
          : lado === 2 ? [x1 - (x1 - x0) * pos, y1] : [x0, y1 - (y1 - y0) * pos];
   }
-  enxame.innerHTML = '<defs>' +
-    '<linearGradient id="gCorpo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb000"/></linearGradient>' +
-    '<clipPath id="clipCorpo"><ellipse cx="0" cy="3" rx="18" ry="13.5"/></clipPath></defs>';
+  // cada abelha é carimbada no canvas a partir de dois desenhos prontos (corpo e asa): assim aguenta centenas delas
+  const CORPO = [-28, -25, 50, 45], ASA = [-9, -22, 18, 26];   // viewBox de cada desenho, nas unidades da abelha
+  let carimboCorpo = null, carimboAsa = null;
 
-  function abelhaSVG() {
-    const asa = (x, y, rot, cls) => '<g transform="translate(' + x + ' ' + y + ') rotate(' + rot + ')"><ellipse class="asa ' + cls + '" cx="0" cy="-9" rx="7.5" ry="11.5" fill="#eaf8ff" fill-opacity=".8" stroke="' + CONT + '" stroke-width="1.4"/></g>';
-    return asa(-5, -12, -24, 'de-tras') +
+  function svgPronto(vb, w, h, miolo) {
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '" viewBox="' + vb.join(' ') + '">' + miolo + '</svg>';
+  }
+  function corpoSVG() {
+    return '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#ffb000"/></linearGradient>' +
+      '<clipPath id="c"><ellipse cx="0" cy="3" rx="18" ry="13.5"/></clipPath></defs>' +
       '<path d="M-16 1L-25 4.5L-16 8Z" fill="' + CONT + '" stroke="' + CONT + '" stroke-width="1.5" stroke-linejoin="round"/>' +
-      '<ellipse cx="0" cy="3" rx="18" ry="13.5" fill="url(#gCorpo)"/>' +
-      '<g clip-path="url(#clipCorpo)" fill="' + CONT + '"><rect x="-10" y="-12" width="5.5" height="30"/><rect x="0" y="-12" width="5.5" height="30"/></g>' +
+      '<ellipse cx="0" cy="3" rx="18" ry="13.5" fill="url(#g)"/>' +
+      '<g clip-path="url(#c)" fill="' + CONT + '"><rect x="-10" y="-12" width="5.5" height="30"/><rect x="0" y="-12" width="5.5" height="30"/></g>' +
       '<ellipse cx="0" cy="3" rx="18" ry="13.5" fill="none" stroke="' + CONT + '" stroke-width="2.2"/>' +
       '<ellipse cx="-3" cy="-4.5" rx="8" ry="2.6" fill="#fff" opacity=".5"/>' +
       '<circle cx="11" cy="0" r="3" fill="' + CONT + '"/><circle cx="12" cy="-1.1" r="1.1" fill="#fff"/>' +
       '<ellipse cx="13.5" cy="7" rx="3" ry="2" fill="#ff7f9c" opacity=".75"/>' +
       '<path d="M8.5 8Q11 10.8 14 8.6" fill="none" stroke="' + CONT + '" stroke-width="1.4" stroke-linecap="round"/>' +
       '<path d="M9 -9Q10 -17 16 -19M5 -10Q4 -18 8 -21" fill="none" stroke="' + CONT + '" stroke-width="1.6" stroke-linecap="round"/>' +
-      '<circle cx="16" cy="-19" r="2" fill="' + CONT + '"/><circle cx="8" cy="-21" r="2" fill="' + CONT + '"/>' +
-      asa(3, -13, 16, '');
+      '<circle cx="16" cy="-19" r="2" fill="' + CONT + '"/><circle cx="8" cy="-21" r="2" fill="' + CONT + '"/>';
+  }
+  const asaSVG = () => '<ellipse cx="0" cy="-9" rx="7.5" ry="11.5" fill="#eaf8ff" fill-opacity=".8" stroke="' + CONT + '" stroke-width="1.4"/>';
+
+  // SVG -> canvas, já na resolução em que vai aparecer
+  function carimbo(vb, miolo, escala) {
+    const w = Math.ceil(vb[2] * escala), h = Math.ceil(vb[3] * escala);
+    return new Promise(res => {
+      const img = new Image();
+      img.onload = () => { const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(img, 0, 0, w, h); res(c); };
+      img.onerror = () => res(null);
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgPronto(vb, w, h, miolo));
+    });
+  }
+  async function prepararCarimbos() {
+    const escala = .85 * 1.05 * k * K;                   // a maior abelha, no tamanho da tela
+    const [c, a] = await Promise.all([carimbo(CORPO, corpoSVG(), escala), carimbo(ASA, asaSVG(), escala)]);
+    if (c && a) { carimboCorpo = c; carimboAsa = a; }
+  }
+
+  function desenhaAsa(x, y, rot, bate) {                // a asa bate em volta da base dela
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(rot); ctx.translate(0, 2.5); ctx.scale(1, bate); ctx.translate(0, -2.5);
+    ctx.drawImage(carimboAsa, ASA[0], ASA[1], ASA[2], ASA[3]);
+    ctx.restore();
+  }
+  function desenhaAbelhas(t) {
+    if (!carimboCorpo) return;
+    ctx.globalAlpha = 1;
+    for (const b of bees) {
+      const bate = Math.sin(t * 37 + b.fase);           // ~6 batidas por segundo
+      ctx.save();
+      ctx.translate(b.x, b.y + b.bob); ctx.scale(b.tam * b.fx, b.tam); ctx.rotate(b.ang * Math.PI / 180);
+      desenhaAsa(-5, -12, -.42, .7 + .3 * bate);        // a de trás
+      ctx.drawImage(carimboCorpo, CORPO[0], CORPO[1], CORPO[2], CORPO[3]);
+      desenhaAsa(3, -13, .28, .7 + .3 * Math.cos(t * 37 + b.fase));
+      ctx.restore();
+    }
   }
 
   function novaAbelha(i) {
-    const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    el.innerHTML = abelhaSVG();
-    enxame.appendChild(el);
     const anel = Math.floor(rnd(0, 4)), pos = rnd(0, 1), [x, y] = SOLTA ? noAnel(anel, pos, 45 * k) : [rnd(zona.x0, zona.x1), rnd(zona.y0, zona.y1)];
-    const b = { i, el, x, y, anel, pos, vx: 0, vy: 0, lado: 1, fx: 1, ang: 0,
+    const b = { i, x, y, anel, pos, vx: 0, vy: 0, lado: 1, fx: 1, ang: 0, bob: 0,
                 tam: .85 * k * rnd(.82, 1.05), fase: rnd(0, 7), fw: rnd(1.6, 2.8), modo: 'voa', ate: 0, alvo: null, rastro: [] };
-    // limite: o centro da abelha fica longe da borda da fonte o bastante pra ela inteira aparecer
-    // (metade dela pros lados, as asas pra cima, a barriga pra baixo, mais o balanço)
+    // limite: o centro da abelha fica longe da borda da área de desenho (no modelo solto, a fonte inteira)
+    // o bastante pra ela inteira aparecer: metade dela pros lados, as asas pra cima, a barriga pra baixo, mais o balanço
     const ex = 28 * b.tam + 3 * k, et = 36 * b.tam + 3 * k, eb = 20 * b.tam + 3 * k;
-    b.lim = { x0: ex, x1: SW - ex, y0: et, y1: SH - eb };
+    b.lim = { x0: RX + ex, x1: RR - ex, y0: RY + et, y1: RB - eb };
     novoAlvo(b);
     return b;
   }
@@ -622,8 +654,7 @@ const CONFIG = {
     b.fx += (b.lado - b.fx) * Math.min(1, dt * 14);   // vira de lado espremendo
     const alvoAng = Math.max(-26, Math.min(26, Math.atan2(b.vy, Math.abs(b.vx) + 40 * k) * 180 / Math.PI * .7));
     b.ang += (alvoAng - b.ang) * Math.min(1, dt * 8);
-    const bob = Math.sin(t * 9 + b.fase) * 2 * k;
-    b.el.setAttribute('transform', 'translate(' + f(b.x) + ' ' + f(b.y + bob) + ') scale(' + f(b.tam * b.fx) + ' ' + f(b.tam) + ') rotate(' + f(b.ang) + ')');
+    const bob = b.bob = Math.sin(t * 9 + b.fase) * 2 * k;
 
     if (C.rastro) {                                    // pontinhos saindo do bumbum
       const px = b.x - b.lado * 20 * b.tam, py = b.y + bob + 5 * b.tam, u = b.rastro[b.rastro.length - 1];
@@ -685,16 +716,23 @@ const CONFIG = {
     ctx.globalAlpha = 1;
   }
 
-  function desenhaRastros(t) {
-    ctx.fillStyle = '#fff6d0';
+  function desenhaRastros(t) {                           // em lote: uma pintura por tom, não uma por pontinho
+    const tons = [[], [], [], [], [], []];
     for (const b of bees) {
       while (b.rastro.length && t - b.rastro[0].t > .9) b.rastro.shift();
       for (const p of b.rastro) {
         const u = (t - p.t) / .9;
-        ctx.globalAlpha = .7 * (1 - u);
-        ctx.beginPath(); ctx.arc(p.x, p.y, 1.8 * k * (1 - u * .5), 0, 7); ctx.fill();
+        tons[Math.min(5, u * 6 | 0)].push(p.x, p.y, 1.8 * k * (1 - u * .5));
       }
     }
+    ctx.fillStyle = '#fff6d0';
+    tons.forEach((l, i) => {
+      if (!l.length) return;
+      ctx.globalAlpha = .7 * (1 - (i + .5) / 6);
+      ctx.beginPath();
+      for (let j = 0; j < l.length; j += 3) { ctx.moveTo(l[j] + l[j + 2], l[j + 1]); ctx.arc(l[j], l[j + 1], l[j + 2], 0, 7); }
+      ctx.fill();
+    });
     ctx.globalAlpha = 1;
   }
 
@@ -745,6 +783,7 @@ const CONFIG = {
     palco.style.transform = 'translate(' + ox + 'px,' + oy + 'px) scale(' + s + ')';
     K = s * (window.devicePixelRatio || 1);
     canvas.width = Math.max(1, Math.round(RW * K)); canvas.height = Math.max(1, Math.round(RH * K));
+    if (NA) prepararCarimbos();
   }
 
   // ================================================================
@@ -772,6 +811,7 @@ const CONFIG = {
     ctx.clearRect(RX, RY, RW, RH);
     desenhaRastros(t);
     desenhaParticulas(t, dt);
+    desenhaAbelhas(t);
     requestAnimationFrame(frame);
   }
 

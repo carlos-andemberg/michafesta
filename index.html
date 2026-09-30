@@ -103,7 +103,7 @@
           <input type="number" id="altura" value="237" min="34" max="2160" aria-label="Altura">
         </div>
       </div>
-      <label class="field"><span>Abelhas</span><input type="number" id="abelhas" value="3" min="0" max="8"></label>
+      <label class="field"><span>Abelhas</span><input type="number" id="abelhas" value="3" min="0" max="500"></label>
       <label class="field"><span>Velocidade · <output id="velTxt"></output></span><input type="range" id="velocidade" value="0.6" min="0.2" max="2" step="0.1" title="0,6× é o padrão · 1× é rápida · 0,3× é bem devagar"></label>
       <label class="field"><span>Festinha a cada (s)</span><input type="number" id="festa" value="25" min="0" max="3600" step="1"></label>
     </div>
@@ -175,7 +175,7 @@
       for (const c of campos) { const v = n(c); if (v !== null && Math.abs(v - cam[c]) >= 1) p.push(c + '=' + Math.round(v)); }
     }
     const ab = n('abelhas');
-    if (ab !== null && ab !== PADRAO.abelhas) p.push('abelhas=' + Math.max(0, Math.min(8, Math.round(ab))));
+    if (ab !== null && ab !== PADRAO.abelhas) p.push('abelhas=' + Math.max(0, Math.min(500, Math.round(ab))));
     const vel = n('velocidade');
     if (vel !== null && Math.abs(vel - PADRAO.velocidade) > .01) p.push('velocidade=' + vel);
     const fe = n('festa');
